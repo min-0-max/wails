@@ -383,8 +383,9 @@ func (t *HTTPTransport) json(rw http.ResponseWriter, data any) {
 	}
 }
 
+// httpError returns err to the caller. It does not log err, because the caller
+// receives it and reports it; only a failure that no caller receives is logged.
 func (t *HTTPTransport) httpError(rw http.ResponseWriter, err error) {
-	t.error(err.Error())
 	// return JSON error if it's a CallError
 	var bytes []byte
 	if cerr := (*CallError)(nil); errors.As(err, &cerr) {

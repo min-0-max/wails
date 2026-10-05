@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -114,3 +115,29 @@ func TestHTTPTransportRuntimeBodyStopsReadingAtLimit(t *testing.T) {
 		t.Fatalf("read beyond limit probe: %d bytes remain", padding.remaining)
 	}
 }
+
+// An error that the transport returns to the caller reaches the caller only;
+// logging it as well writes every failed call twice. A failure that no caller
+// receives, such as a failed write of the error response, is still logged.
+func TestHTTPTransportErrorIsReturnedNotLogged(t *testing.T) {
+	var logged strings.Builder
+	logger := slog.New(slog.NewTextHandler(&logged, nil))
+	transport := NewHTTPTransport(HTTPTransportWithLogger(logger))
+	rec := httptest.NewRecorder()
+	transport.handleRuntimeRequest(rec, httptest.NewRequest(http.MethodPost, "/wails/runtime", strings.NewReader("{}")))
+	if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), "missing object value") {
+		t.Fatalf("response = %d %q", rec.Code, rec.Body.String())
+	}
+	if logged.Len() != 0 {
+		t.Fatalf("the returned error was also logged: %q", logged.String())
+	}
+
+	transport.httpError(failingWriter{httptest.NewRecorder()}, fmt.Errorf("returned"))
+	if strings.Contains(logged.String(), "returned") || !strings.Contains(logged.String(), "Unable to write error response") {
+		t.Fatalf("log after a failed write = %q", logged.String())
+	}
+}
+
+type failingWriter struct{ *httptest.ResponseRecorder }
+
+func (failingWriter) Write([]byte) (int, error) { return 0, fmt.Errorf("closed") }
