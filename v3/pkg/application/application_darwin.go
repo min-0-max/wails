@@ -331,7 +331,7 @@ func (m *macosApp) run() error {
 			// force-activating them steals focus from whatever the user was
 			// using (e.g. the terminal that launched a headless server), which a
 			// background app should never do.
-			if m.parent.options.Mac.ActivationPolicy == ActivationPolicyRegular {
+			if m.parent.options.Mac.ActivationPolicy == ActivationPolicyRegular && !m.parent.options.Mac.DisableActivationOnLaunch {
 				C.activateIgnoringOtherApps()
 			}
 			if err := m.processAndCacheScreens(); err != nil {

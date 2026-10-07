@@ -258,6 +258,11 @@ type MacOptions struct {
 	ActivationPolicy ActivationPolicy
 	// If set to true, the application will terminate when the last window is closed.
 	ApplicationShouldTerminateAfterLastWindowClosed bool
+	// DisableActivationOnLaunch stops a regular application from activating itself
+	// when it finishes launching. macOS still activates an application that a person
+	// opens, and an application launched in the background (for example with
+	// `open -g`) stays behind the frontmost application.
+	DisableActivationOnLaunch bool
 }
 
 /****** Windows Options *******/

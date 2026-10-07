@@ -17,6 +17,7 @@ After processing, the content will be moved to the main changelog and this file 
 
 ## Added
 <!-- New features, capabilities, or enhancements -->
+- Add `MacOptions.DisableActivationOnLaunch`, which stops a regular application from activating itself when it finishes launching, so an application launched in the background (`open -g`) stays behind the frontmost application
 
 ## Changed
 <!-- Changes in existing functionality -->
