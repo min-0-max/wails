@@ -255,6 +255,7 @@ func (w *WebviewWindow) EmitEvent(name string, data ...any) bool {
 	event := &CustomEvent{
 		Name:   name,
 		Sender: w.Name(),
+		target: w,
 	}
 
 	if len(data) == 1 {

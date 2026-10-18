@@ -56,6 +56,10 @@ type CustomEvent struct {
 	// or "" if sent from application.
 	Sender string `json:"sender,omitempty"`
 
+	// target is the window whose page receives the event, set by
+	// [WebviewWindow.EmitEvent]. nil delivers the event to every window.
+	target *WebviewWindow
+
 	cancelled atomic.Bool
 }
 

@@ -23,6 +23,10 @@ func (t *EventIPCTransport) DispatchWailsEvent(event *CustomEvent) {
 		if event.IsCancelled() {
 			return
 		}
+		// An event emitted by a window goes to that window's page only.
+		if event.target != nil && window.ID() != event.target.id {
+			continue
+		}
 		window.DispatchWailsEvent(event)
 	}
 }
