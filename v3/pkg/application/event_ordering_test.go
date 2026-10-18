@@ -124,6 +124,8 @@ func TestEventFromMainThreadDoesNotOvertakeQueuedEvent(t *testing.T) {
 	probe, win, restore := newOrderingProbe(t)
 	defer restore()
 	impl := win.impl.(*stubWindowImpl)
+	win.HandleMessage("wails:event:listen:first")
+	win.HandleMessage("wails:event:listen:second")
 
 	// Emitted from a goroutine. Without the queue this parks in InvokeSync
 	// waiting for the UI thread, so it runs in its own goroutine either way.
@@ -330,6 +332,7 @@ func TestOrphanedPayloadIsReclaimedWhenQueueRefuses(t *testing.T) {
 
 	store := newEventPayloadStore()
 	globalApplication.eventPayloads = store
+	win.HandleMessage("wails:event:listen:big")
 
 	// Simulate the interleaving: the queue is already closed by the time the
 	// dispatcher reaches it.

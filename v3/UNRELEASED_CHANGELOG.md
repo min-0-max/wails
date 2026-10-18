@@ -21,6 +21,7 @@ After processing, the content will be moved to the main changelog and this file 
 
 ## Changed
 <!-- Changes in existing functionality -->
+- Evaluate an event in a window only when the runtime of its page has a listener for the event name: the runtime reports the first listener of a name with `wails:event:listen:<name>` and the removal of the last one with `wails:event:unlisten:<name>`, and an event emitted before the runtime is ready is kept and flushed as before. A page without a listener for an event no longer evaluates it, which on macOS left about 1.4 KB of WebKit garbage per event, and native window events reach only pages that listen to them
 
 ## Fixed
 <!-- Bug fixes -->

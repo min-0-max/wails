@@ -211,6 +211,13 @@ type WebviewWindow struct {
 	pendingJS      []string
 	pendingJSMutex sync.Mutex
 
+	// jsListeners holds the event names for which the runtime of the loaded
+	// page has at least one listener. The runtime reports each name with
+	// wails:event:listen and wails:event:unlisten, and wails:runtime:ready
+	// empties the set because a newly loaded page starts without listeners.
+	// It is guarded by pendingJSMutex together with runtimeLoaded.
+	jsListeners map[string]struct{}
+
 	// unconditionallyClose marks the window to be unconditionally closed (atomic)
 	unconditionallyClose uint32
 
@@ -843,6 +850,7 @@ func (w *WebviewWindow) HandleMessage(message string) {
 		w.emit(events.Common.WindowRuntimeReady)
 		w.pendingJSMutex.Lock()
 		w.runtimeLoaded = true
+		w.jsListeners = map[string]struct{}{}
 		pending := w.pendingJS
 		w.pendingJS = nil
 		w.pendingJSMutex.Unlock()
@@ -875,6 +883,10 @@ func (w *WebviewWindow) HandleMessage(message string) {
 		}
 		evt := &CustomEvent{Name: name, Sender: w.Name()}
 		globalApplication.Event.EmitEvent(evt)
+	case strings.HasPrefix(message, "wails:event:listen:"):
+		w.setJSListener(strings.TrimPrefix(message, "wails:event:listen:"), true)
+	case strings.HasPrefix(message, "wails:event:unlisten:"):
+		w.setJSListener(strings.TrimPrefix(message, "wails:event:unlisten:"), false)
 	default:
 		w.Error("unknown message sent via 'invoke' on frontend: %v", message)
 	}
@@ -1440,8 +1452,42 @@ const (
 		".then(function(e){w.dispatchWailsEvent(e);});}).catch(function(){});}"
 )
 
+// setJSListener records whether the runtime of the loaded page has a listener
+// for the event name.
+func (w *WebviewWindow) setJSListener(name string, listening bool) {
+	if name == "" {
+		w.Error("empty event name in wails:event:listen or wails:event:unlisten")
+		return
+	}
+	w.pendingJSMutex.Lock()
+	defer w.pendingJSMutex.Unlock()
+	if w.jsListeners == nil {
+		w.jsListeners = map[string]struct{}{}
+	}
+	if listening {
+		w.jsListeners[name] = struct{}{}
+	} else {
+		delete(w.jsListeners, name)
+	}
+}
+
+// pageListens reports whether the event must be evaluated in the page. Before
+// the runtime is ready the page has not reported its listeners, so every event
+// is kept for the pending queue that ExecJS flushes when the runtime is ready.
+// After that only an event for which the runtime reported a listener is
+// evaluated, because the runtime ignores any other event.
+func (w *WebviewWindow) pageListens(name string) bool {
+	w.pendingJSMutex.Lock()
+	defer w.pendingJSMutex.Unlock()
+	if !w.runtimeLoaded {
+		return true
+	}
+	_, ok := w.jsListeners[name]
+	return ok
+}
+
 func (w *WebviewWindow) DispatchWailsEvent(event *CustomEvent) {
-	if w.impl == nil || w.isDestroyed() {
+	if w.impl == nil || w.isDestroyed() || !w.pageListens(event.Name) {
 		return
 	}
 
@@ -1602,8 +1648,6 @@ func (w *WebviewWindow) eventQueueHighWater() int {
 }
 
 func (w *WebviewWindow) dispatchWindowEvent(id uint) {
-	// TODO: Make this more efficient by keeping a list of which events have been registered
-	// and only dispatching those.
 	jsEvent := &CustomEvent{
 		Name: events.JSEvent(id),
 	}

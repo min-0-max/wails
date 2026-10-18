@@ -9,7 +9,7 @@ The electron alternative for Go
 */
 
 import { newRuntimeCaller, objectNames } from "./runtime.js";
-import { eventListeners, Listener, listenerOff } from "./listener.js";
+import { eventListeners, Listener, listenerOff, listenerOn, listenersClear } from "./listener.js";
 import { Events as Create } from "./create.js";
 import { Types } from "./event_types.js";
 
@@ -116,7 +116,7 @@ function dispatchWailsEvent(event: any) {
         if (live) {
             const remaining = live.filter(l => !expired.has(l));
             if (remaining.length === 0) {
-                eventListeners.delete(event.name);
+                listenersClear(event.name);
             } else {
                 eventListeners.set(event.name, remaining);
             }
@@ -133,10 +133,8 @@ function dispatchWailsEvent(event: any) {
  * @returns A function that, when called, will unregister the callback from the event.
  */
 export function OnMultiple<E extends WailsEventName = WailsEventName>(eventName: E, callback: WailsEventCallback<E>, maxCallbacks: number) {
-    let listeners = eventListeners.get(eventName) || [];
     const thisListener = new Listener(eventName, callback, maxCallbacks);
-    listeners.push(thisListener);
-    eventListeners.set(eventName, listeners);
+    listenerOn(thisListener);
     return () => listenerOff(thisListener);
 }
 
@@ -168,14 +166,14 @@ export function Once<E extends WailsEventName = WailsEventName>(eventName: E, ca
  * @param eventNames - The name of the events to remove listeners for.
  */
 export function Off(...eventNames: [WailsEventName, ...WailsEventName[]]): void {
-    eventNames.forEach(eventName => eventListeners.delete(eventName));
+    eventNames.forEach(eventName => listenersClear(eventName));
 }
 
 /**
  * Removes all event listeners.
  */
 export function OffAll(): void {
-    eventListeners.clear();
+    [...eventListeners.keys()].forEach(eventName => listenersClear(eventName));
 }
 
 /**
