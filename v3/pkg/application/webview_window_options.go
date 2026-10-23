@@ -794,9 +794,9 @@ type MacWebviewPreferences struct {
 	// without requiring a user gesture. Maps to WKWebViewConfiguration.mediaTypesRequiringUserActionForPlayback.
 	EnableAutoplayWithoutUserAction optional.Bool
 	// AcceptFirstMouse makes the webview accept the mouse down that activates an inactive window, so the
-	// press reaches the page and the page takes the keyboard focus. WKWebView refuses it by default. Maps to
-	// the acceptsFirstMouse: method of the webview; a webview without it refuses the first mouse.
-	AcceptFirstMouse optional.Bool
+	// press reaches the page and the page takes the keyboard focus. The zero value keeps the WKWebView default,
+	// which refuses it.
+	AcceptFirstMouse bool
 }
 
 // MacTitleBar contains options for the Mac titlebar

@@ -28,7 +28,7 @@ struct WebviewPreferences {
     bool *JavaScriptCanOpenWindowsAutomatically;
     double *MinimumFontSize;
     bool *EnableAutoplayWithoutUserAction;
-    bool *AcceptFirstMouse;
+    bool AcceptFirstMouse;
 };
 
 struct PanelPreferences {
@@ -198,7 +198,7 @@ void* windowNew(unsigned int id, int width, int height, bool fraudulentWebsiteWa
 	// WailsWebView accepts the first mouse only when the option is set, so the default is the one of WKWebView.
 	WailsWebView* webView = [[WailsWebView alloc] initWithFrame:frame configuration:config];
 	[webView autorelease];
-	webView.acceptsFirstMouseClick = preferences.AcceptFirstMouse != NULL && *preferences.AcceptFirstMouse;
+	webView.acceptsFirstMouseClick = preferences.AcceptFirstMouse;
 
     if (preferences.AllowsBackForwardNavigationGestures != NULL) {
         webView.allowsBackForwardNavigationGestures = *preferences.AllowsBackForwardNavigationGestures;
@@ -1601,9 +1601,7 @@ func (w *macosWebviewWindow) getWebviewPreferences() C.struct_WebviewPreferences
 	if wvprefs.JavaScriptCanOpenWindowsAutomatically.IsSet() {
 		result.JavaScriptCanOpenWindowsAutomatically = bool2CboolPtr(wvprefs.JavaScriptCanOpenWindowsAutomatically.Get())
 	}
-	if wvprefs.AcceptFirstMouse.IsSet() {
-		result.AcceptFirstMouse = bool2CboolPtr(wvprefs.AcceptFirstMouse.Get())
-	}
+	result.AcceptFirstMouse = C.bool(wvprefs.AcceptFirstMouse)
 	if wvprefs.MinimumFontSize.IsSet() {
 		v := C.double(wvprefs.MinimumFontSize.Get())
 		result.MinimumFontSize = &v
