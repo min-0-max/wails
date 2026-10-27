@@ -99,7 +99,7 @@ static NSWindow<WailsWebviewWindow>* createNativeWindow(int width, int height, b
 
 // Create a new Window or Panel. Everything after native class construction is
 // deliberately shared so the panel path receives every WKWebView/window option.
-void* windowNew(unsigned int id, int width, int height, bool fraudulentWebsiteWarningEnabled,
+void* windowNew(unsigned int id, unsigned long long callbackLifetimeID, int width, int height, bool fraudulentWebsiteWarningEnabled,
 		bool frameless, bool squareCorners, double cornerRadius, bool enableDragAndDrop,
 		struct WebviewPreferences preferences, const char* applicationNameForUserAgent,
 		bool isPanel, struct PanelPreferences panelPreferences, bool isNotchWindow,
@@ -117,6 +117,7 @@ void* windowNew(unsigned int id, int width, int height, bool fraudulentWebsiteWa
 	// Set delegate
 	[window setDelegate:delegate];
 	delegate.windowId = id;
+	delegate.callbackLifetimeID = callbackLifetimeID;
 
 	// Add NSView to window
 	NSView* view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, width-1, height-1)];
@@ -223,6 +224,7 @@ void* windowNew(unsigned int id, int width, int height, bool fraudulentWebsiteWa
 		[dragView setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
 		[view addSubview:dragView];
 		dragView.windowId = id;
+		dragView.callbackLifetimeID = callbackLifetimeID;
 	}
 
 	window.webView = webView;
@@ -1634,7 +1636,7 @@ func (w *macosWebviewWindow) run() {
 		notchContentWidth, notchContentHeight, notchScreenID := w.notchConfiguration()
 		cNotchScreenID := C.CString(notchScreenID)
 		defer C.free(unsafe.Pointer(cNotchScreenID))
-		w.nsWindow = C.windowNew(C.uint(w.parent.id),
+		w.nsWindow = C.windowNew(C.uint(w.parent.id), C.ulonglong(w.parent.callbackLifetimeID),
 			C.int(options.Width),
 			C.int(options.Height),
 			C.bool(macOptions.EnableFraudulentWebsiteWarnings),

@@ -338,8 +338,9 @@ func ServeAssetRequest(windowID C.uint, urlSchemeTask unsafe.Pointer) {
 	if strings.Contains(url, "/wails/runtime") {
 		if _, alreadyReady := iosRuntimeReadyWindows.LoadOrStore(uint(windowID), true); !alreadyReady {
 			windowMessageBuffer <- &windowMessage{
-				windowId: uint(windowID),
-				message:  "wails:runtime:ready",
+				windowId:   uint(windowID),
+				lifetimeID: globalApplication.Window.lifetimeID(uint(windowID)),
+				message:    "wails:runtime:ready",
 			}
 		}
 	}
@@ -388,8 +389,9 @@ func HandleJSMessage(windowID C.uint, message *C.char) {
 	}
 
 	windowMessageBuffer <- &windowMessage{
-		windowId: uint(windowID),
-		message:  msg,
+		windowId:   uint(windowID),
+		lifetimeID: globalApplication.Window.lifetimeID(uint(windowID)),
+		message:    msg,
 	}
 }
 

@@ -168,9 +168,10 @@ type WindowEventListener struct {
 }
 
 type WebviewWindow struct {
-	options WebviewWindowOptions
-	impl    webviewWindowImpl
-	id      uint
+	options            WebviewWindowOptions
+	impl               webviewWindowImpl
+	id                 uint
+	callbackLifetimeID uint64
 
 	// notchWindow is set only by WindowManager.NewNotchWindow. It is kept
 	// outside WebviewWindowOptions so the lower-level constructor cannot create
@@ -373,9 +374,10 @@ func NewWindow(options WebviewWindowOptions) *WebviewWindow {
 	// Listen for window closing events and de
 	result.OnWindowEvent(events.Common.WindowClosing, func(event *WindowEvent) {
 		atomic.StoreUint32(&result.unconditionallyClose, 1)
+		globalApplication.Window.Retire(result.id, result.callbackLifetimeID)
 		InvokeSync(result.markAsDestroyed)
 		InvokeSync(result.impl.close)
-		globalApplication.Window.Remove(result.id)
+		globalApplication.Window.removeLifetime(result.id, result.callbackLifetimeID)
 	})
 
 	// Process keybindings

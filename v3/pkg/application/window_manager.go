@@ -1,5 +1,53 @@
 package application
 
+import "sync"
+
+type windowLifetime struct {
+	id uint64
+
+	mu      sync.Mutex
+	retired bool
+}
+
+func (l *windowLifetime) retire() {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	l.retired = true
+	l.mu.Unlock()
+}
+
+func (l *windowLifetime) admit() bool {
+	if l == nil {
+		return false
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return !l.retired
+}
+
+var windowLifetimeSequence uint64
+var windowLifetimeSequenceLock sync.Mutex
+
+func nextWindowLifetimeID() uint64 {
+	windowLifetimeSequenceLock.Lock()
+	defer windowLifetimeSequenceLock.Unlock()
+	windowLifetimeSequence++
+	return uint64(1)<<63 | windowLifetimeSequence
+}
+
+func allocatedWindowLifetimeID(id uint64) bool {
+	const prefix = uint64(1) << 63
+	if id&prefix == 0 {
+		return false
+	}
+	sequence := id &^ prefix
+	windowLifetimeSequenceLock.Lock()
+	defer windowLifetimeSequenceLock.Unlock()
+	return sequence > 0 && sequence <= windowLifetimeSequence
+}
+
 // WindowManager manages all window-related operations
 type WindowManager struct {
 	app *App
@@ -58,10 +106,14 @@ func (wm *WindowManager) NewWithOptions(windowOptions WebviewWindowOptions) *Web
 }
 
 func (wm *WindowManager) addAndRun(newWindow *WebviewWindow) {
-	id := newWindow.ID()
-
+	lifetimeID := nextWindowLifetimeID()
+	newWindow.callbackLifetimeID = lifetimeID
 	wm.app.windowsLock.Lock()
-	wm.app.windows[id] = newWindow
+	if wm.app.windowLifetimes == nil {
+		wm.app.windowLifetimes = make(map[uint]*windowLifetime)
+	}
+	wm.app.windows[newWindow.ID()] = newWindow
+	wm.app.windowLifetimes[newWindow.ID()] = &windowLifetime{id: lifetimeID}
 	wm.app.windowsLock.Unlock()
 
 	for _, hook := range wm.app.windowCreatedCallbacks {
@@ -84,13 +136,45 @@ func (wm *WindowManager) Current() Window {
 
 // Add adds a window to the manager
 func (wm *WindowManager) Add(window Window) {
+	lifetimeID := nextWindowLifetimeID()
+	if webviewWindow, ok := window.(*WebviewWindow); ok {
+		webviewWindow.callbackLifetimeID = lifetimeID
+	}
+	wm.addWindow(window, lifetimeID)
+}
+
+func (wm *WindowManager) addWindow(window Window, lifetimeID uint64) {
 	wm.app.windowsLock.Lock()
 	defer wm.app.windowsLock.Unlock()
+	if wm.app.windowLifetimes == nil {
+		wm.app.windowLifetimes = make(map[uint]*windowLifetime)
+	}
 	wm.app.windows[window.ID()] = window
+	wm.app.windowLifetimes[window.ID()] = &windowLifetime{id: lifetimeID}
 
 	// Call registered callbacks
 	for _, callback := range wm.app.windowCreatedCallbacks {
 		callback(window)
+	}
+}
+
+func (wm *WindowManager) lifetimeID(windowID uint) uint64 {
+	wm.app.windowsLock.RLock()
+	defer wm.app.windowsLock.RUnlock()
+	if lifetime := wm.app.windowLifetimes[windowID]; lifetime != nil {
+		return lifetime.id
+	}
+	return 0
+}
+
+// Retire closes callback admission for one window lifetime before native
+// teardown begins. Remove remains a manager-only operation.
+func (wm *WindowManager) Retire(windowID uint, lifetimeID uint64) {
+	wm.app.windowsLock.RLock()
+	lifetime := wm.app.windowLifetimes[windowID]
+	wm.app.windowsLock.RUnlock()
+	if lifetime != nil && lifetime.id == lifetimeID {
+		lifetime.retire()
 	}
 }
 
@@ -99,6 +183,18 @@ func (wm *WindowManager) Remove(windowID uint) {
 	wm.app.windowsLock.Lock()
 	defer wm.app.windowsLock.Unlock()
 	delete(wm.app.windows, windowID)
+	delete(wm.app.windowLifetimes, windowID)
+}
+
+func (wm *WindowManager) removeLifetime(windowID uint, lifetimeID uint64) {
+	wm.app.windowsLock.Lock()
+	defer wm.app.windowsLock.Unlock()
+	lifetime := wm.app.windowLifetimes[windowID]
+	if lifetime == nil || lifetime.id != lifetimeID {
+		return
+	}
+	delete(wm.app.windows, windowID)
+	delete(wm.app.windowLifetimes, windowID)
 }
 
 // RemoveByName removes a window from the manager by name

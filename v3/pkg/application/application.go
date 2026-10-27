@@ -261,6 +261,7 @@ type (
 // Messages sent from javascript get routed here
 type windowMessage struct {
 	windowId   uint
+	lifetimeID uint64
 	message    string
 	originInfo *OriginInfo
 }
@@ -285,6 +286,7 @@ type DropTargetDetails struct {
 
 type dragAndDropMessage struct {
 	windowId   uint
+	lifetimeID uint64
 	filenames  []string
 	X          int
 	Y          int
@@ -296,6 +298,7 @@ var windowDragAndDropBuffer = make(chan *dragAndDropMessage, 5)
 func addDragAndDropMessage(windowId uint, filenames []string, dropTarget *DropTargetDetails) {
 	windowDragAndDropBuffer <- &dragAndDropMessage{
 		windowId:   windowId,
+		lifetimeID: globalApplication.Window.lifetimeID(windowId),
 		filenames:  filenames,
 		DropTarget: dropTarget,
 	}
@@ -361,6 +364,7 @@ var windowKeyEvents = make(chan *windowKeyEvent, 5)
 
 type windowKeyEvent struct {
 	windowId          uint
+	lifetimeID        uint64
 	acceleratorString string
 }
 
@@ -438,8 +442,9 @@ type App struct {
 	Updater        *updater.Updater
 
 	// Windows
-	windows     map[uint]Window
-	windowsLock sync.RWMutex
+	windows         map[uint]Window
+	windowLifetimes map[uint]*windowLifetime
+	windowsLock     sync.RWMutex
 
 	// System Trays
 	systemTrays      map[uint]*SystemTray
@@ -578,6 +583,7 @@ func (a *App) init() {
 	a.applicationEventHooks = make(map[uint][]*eventHook)
 	a.applicationEventListeners = make(map[uint][]*EventListener)
 	a.windows = make(map[uint]Window)
+	a.windowLifetimes = make(map[uint]*windowLifetime)
 	a.systemTrays = make(map[uint]*SystemTray)
 	a.contextMenus = make(map[string]*ContextMenu)
 	a.keyBindings = make(map[string]func(window Window))
@@ -829,11 +835,11 @@ func (a *App) shutdownServices() {
 
 func (a *App) handleDragAndDropMessage(event *dragAndDropMessage) {
 	defer handlePanic()
-	a.windowsLock.Lock()
-	window, ok := a.windows[event.windowId]
-	a.windowsLock.Unlock()
-	if !ok {
+	window, ok, reportMissing := a.admitWindowCallback(event.windowId, event.lifetimeID)
+	if reportMissing {
 		a.warning("WebviewWindow #%d not found", event.windowId)
+	}
+	if !ok {
 		return
 	}
 	window.handleDragAndDropMessage(event.filenames, event.DropTarget)
@@ -841,10 +847,9 @@ func (a *App) handleDragAndDropMessage(event *dragAndDropMessage) {
 
 func (a *App) handleWindowMessage(event *windowMessage) {
 	defer handlePanic()
-	// Get window from window map
-	a.windowsLock.RLock()
-	window, ok := a.windows[event.windowId]
+	window, ok, reportMissing := a.admitWindowCallback(event.windowId, event.lifetimeID)
 	// Debug: log all window IDs
+	a.windowsLock.RLock()
 	var ids []uint
 	for id := range a.windows {
 		ids = append(ids, id)
@@ -853,8 +858,10 @@ func (a *App) handleWindowMessage(event *windowMessage) {
 
 	a.debug("handleWindowMessage: Looking for window", "windowId", event.windowId, "availableIDs", ids)
 
-	if !ok {
+	if reportMissing {
 		a.warning("WebviewWindow #%d not found", event.windowId)
+	}
+	if !ok {
 		return
 	}
 	// Check if the message starts with "wails:"
@@ -1022,16 +1029,38 @@ func (a *App) runOrDeferToAppRun(r runnable) {
 
 func (a *App) handleWindowKeyEvent(event *windowKeyEvent) {
 	defer handlePanic()
-	// Get window from window map
-	a.windowsLock.RLock()
-	window, ok := a.windows[event.windowId]
-	a.windowsLock.RUnlock()
-	if !ok {
+	window, ok, reportMissing := a.admitWindowCallback(event.windowId, event.lifetimeID)
+	if reportMissing {
 		a.warning("WebviewWindow #%d not found", event.windowId)
+	}
+	if !ok {
 		return
 	}
 	// Get callback from window
 	window.HandleKeyEvent(event.acceleratorString)
+}
+
+// admitWindowCallback binds queued work to the native window lifetime that
+// produced it. An unallocated lifetime retains the missing-window warning;
+// an allocated stale lifetime is discarded without reaching a replacement.
+func (a *App) admitWindowCallback(windowID uint, lifetimeID uint64) (Window, bool, bool) {
+	a.windowsLock.RLock()
+	window, exists := a.windows[windowID]
+	lifetime := a.windowLifetimes[windowID]
+	a.windowsLock.RUnlock()
+	if !exists {
+		return nil, false, !allocatedWindowLifetimeID(lifetimeID)
+	}
+	if !allocatedWindowLifetimeID(lifetimeID) {
+		return nil, false, true
+	}
+	if lifetime == nil || lifetime.id != lifetimeID {
+		return nil, false, false
+	}
+	if lifetime != nil && !lifetime.admit() {
+		return nil, false, false
+	}
+	return window, true, false
 }
 
 func (a *App) shouldQuit() bool {

@@ -2364,8 +2364,9 @@ func (w *windowsWebviewWindow) processMessage(message string, sender *edge.ICore
 
 	// We send all messages to the centralised window message buffer
 	windowMessageBuffer <- &windowMessage{
-		windowId: w.parent.id,
-		message:  message,
+		windowId:   w.parent.id,
+		lifetimeID: w.parent.callbackLifetimeID,
+		message:    message,
 		originInfo: &OriginInfo{
 			Origin:    senderSource,
 			TopOrigin: topSource,

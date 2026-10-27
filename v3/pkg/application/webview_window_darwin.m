@@ -5,15 +5,15 @@
 #import "webview_window_darwin.h"
 #import "mac_private_api_darwin.h"
 #import "../events/events_darwin.h"
-extern void processMessage(unsigned int, const char*, const char *, bool);
+extern void processMessage(unsigned int, unsigned long long, const char*, const char *, bool);
 extern void processURLRequest(unsigned int, void *);
 extern void cancelURLRequest(void *);
-extern void processDragItems(unsigned int windowId, char** arr, int length, int x, int y);
-extern void processWindowKeyDownEvent(unsigned int, const char*);
+extern void processDragItems(unsigned int windowId, unsigned long long callbackLifetimeID, char** arr, int length, int x, int y);
+extern void processWindowKeyDownEvent(unsigned int, unsigned long long, const char*);
 // Implemented in Go, in accelerator_darwin.go.
 extern char* acceleratorFromKeyPress(unsigned short keyCode, unsigned long modifiers,
                                      unsigned int character, int hasCharacter);
-extern bool processWindowKeyEquivalent(unsigned int, const char*);
+extern bool processWindowKeyEquivalent(unsigned int, unsigned long long, const char*);
 extern bool hasListeners(unsigned int);
 extern int resolveMediaCapturePermission(unsigned int, bool, bool);
 extern bool windowShouldUnconditionallyClose(unsigned int);
@@ -70,7 +70,7 @@ BOOL dispatchKeyEquivalent(NSEvent* event, NSWindow* window) {
     }
     NSString* accelerator = acceleratorStringFromKeyEvent(event);
     return accelerator.length > 0 &&
-        processWindowKeyEquivalent(delegate.windowId, accelerator.UTF8String);
+        processWindowKeyEquivalent(delegate.windowId, delegate.callbackLifetimeID, accelerator.UTF8String);
 }
 
 @implementation WebviewWindow
@@ -91,7 +91,7 @@ BOOL dispatchKeyEquivalent(NSEvent* event, NSWindow* window) {
         return;
     }
     WebviewWindowDelegate *delegate = (WebviewWindowDelegate*)self.delegate;
-    processWindowKeyDownEvent(delegate.windowId, [keyEventString UTF8String]);
+    processWindowKeyDownEvent(delegate.windowId, delegate.callbackLifetimeID, [keyEventString UTF8String]);
 }
 // performKeyEquivalent is invoked by Cocoa for every modifier-key combo
 // BEFORE the responder chain runs, giving the window a chance to claim
@@ -469,7 +469,7 @@ BOOL dispatchKeyEquivalent(NSEvent* event, NSWindow* window) {
         CGFloat viewHeight = webView.frame.size.height;
         int x = (int)dropPointInView.x;
         int y = (int)(viewHeight - dropPointInView.y); // Flip Y for web coordinate system
-        processDragItems(self.windowId, cArray, (int)count, x, y); // self.windowId is from the delegate
+    processDragItems(self.windowId, self.callbackLifetimeID, cArray, (int)count, x, y); // self.windowId is from the delegate
         free(cArray);
         return NO;
     }
@@ -515,7 +515,7 @@ BOOL dispatchKeyEquivalent(NSEvent* event, NSWindow* window) {
     NSString *m = [body isKindOfClass:[NSString class]] ? (NSString *)body : [body description];
     const char *_m = [m UTF8String];
     const char *_origin = origin ? [origin UTF8String] : "";
-    processMessage(self.windowId, _m, _origin, message.frameInfo.isMainFrame);
+    processMessage(self.windowId, self.callbackLifetimeID, _m, _origin, message.frameInfo.isMainFrame);
 }
 - (void)handleLeftMouseDown:(NSEvent *)event {
     self.leftMouseEvent = event;

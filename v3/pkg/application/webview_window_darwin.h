@@ -27,6 +27,7 @@
 @interface WebviewWindowDelegate : NSObject <NSWindowDelegate, WKScriptMessageHandler, WKNavigationDelegate, WKURLSchemeHandler, NSDraggingDestination, WKUIDelegate>
 
 @property unsigned int windowId;
+@property unsigned long long callbackLifetimeID;
 @property (retain) NSEvent* leftMouseEvent;
 @property unsigned int invisibleTitleBarHeight;
 @property BOOL showToolbarWhenFullscreen;

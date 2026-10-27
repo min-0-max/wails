@@ -413,14 +413,15 @@ func processWindowEvent(windowID C.uint, eventID C.uint) {
 }
 
 //export processMessage
-func processMessage(windowID C.uint, message *C.char, origin *C.char, isMainFrame bool) {
+func processMessage(windowID C.uint, callbackLifetimeID C.ulonglong, message *C.char, origin *C.char, isMainFrame bool) {
 	o := ""
 	if origin != nil {
 		o = C.GoString(origin)
 	}
 	windowMessageBuffer <- &windowMessage{
-		windowId: uint(windowID),
-		message:  C.GoString(message),
+		windowId:   uint(windowID),
+		lifetimeID: uint64(callbackLifetimeID),
+		message:    C.GoString(message),
 		originInfo: &OriginInfo{
 			Origin:      o,
 			IsMainFrame: isMainFrame,
@@ -458,9 +459,10 @@ func acceleratorFromKeyPress(keyCode C.ushort, modifiers C.ulong, character C.ui
 }
 
 //export processWindowKeyDownEvent
-func processWindowKeyDownEvent(windowID C.uint, acceleratorString *C.char) {
+func processWindowKeyDownEvent(windowID C.uint, callbackLifetimeID C.ulonglong, acceleratorString *C.char) {
 	windowKeyEvents <- &windowKeyEvent{
 		windowId:          uint(windowID),
+		lifetimeID:        uint64(callbackLifetimeID),
 		acceleratorString: C.GoString(acceleratorString),
 	}
 }
@@ -474,13 +476,11 @@ func processWindowKeyDownEvent(windowID C.uint, acceleratorString *C.char) {
 // canonical example.
 //
 //export processWindowKeyEquivalent
-func processWindowKeyEquivalent(windowID C.uint, acceleratorString *C.char) C.bool {
+func processWindowKeyEquivalent(windowID C.uint, callbackLifetimeID C.ulonglong, acceleratorString *C.char) C.bool {
 	if globalApplication == nil {
 		return C.bool(false)
 	}
-	globalApplication.windowsLock.RLock()
-	window, ok := globalApplication.windows[uint(windowID)]
-	globalApplication.windowsLock.RUnlock()
+	window, ok, _ := globalApplication.admitWindowCallback(uint(windowID), uint64(callbackLifetimeID))
 	if !ok {
 		return C.bool(false)
 	}
@@ -496,7 +496,7 @@ func processWindowKeyEquivalent(windowID C.uint, acceleratorString *C.char) C.bo
 }
 
 //export processDragItems
-func processDragItems(windowID C.uint, arr **C.char, length C.int, x C.int, y C.int) {
+func processDragItems(windowID C.uint, callbackLifetimeID C.ulonglong, arr **C.char, length C.int, x C.int, y C.int) {
 	var filenames []string
 	// Convert the C array to a Go slice
 	goSlice := (*[1 << 30]*C.char)(unsafe.Pointer(arr))[:length:length]
@@ -515,9 +515,11 @@ func processDragItems(windowID C.uint, arr **C.char, length C.int, x C.int, y C.
 		"y",
 		y,
 	)
-	targetWindow, ok := globalApplication.Window.GetByID(uint(windowID))
+	targetWindow, ok, reportMissing := globalApplication.admitWindowCallback(uint(windowID), uint64(callbackLifetimeID))
 	if !ok || targetWindow == nil {
-		println("Error: processDragItems could not find window with ID:", uint(windowID))
+		if reportMissing {
+			println("Error: processDragItems could not find window with ID:", uint(windowID))
+		}
 		return
 	}
 

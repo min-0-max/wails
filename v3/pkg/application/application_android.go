@@ -979,8 +979,9 @@ func serveAssetForAndroid(app *App, method string, path string) ([]byte, error) 
 			// ready messages gracefully.
 			if _, alreadyReady := androidRuntimeReadyWindows.LoadOrStore(windowID, true); !alreadyReady {
 				windowMessageBuffer <- &windowMessage{
-					windowId: windowID,
-					message:  "wails:runtime:ready",
+					windowId:   windowID,
+					lifetimeID: app.Window.lifetimeID(windowID),
+					message:    "wails:runtime:ready",
 				}
 			}
 		}
@@ -1106,9 +1107,11 @@ func handleMessageForAndroid(app *App, message string) {
 		}
 	}
 
+	windowID := androidFirstWindowID(app)
 	windowMessageBuffer <- &windowMessage{
-		windowId: androidFirstWindowID(app),
-		message:  msg,
+		windowId:   windowID,
+		lifetimeID: app.Window.lifetimeID(windowID),
+		message:    msg,
 	}
 }
 
