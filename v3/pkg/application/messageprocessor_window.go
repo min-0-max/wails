@@ -393,6 +393,7 @@ func (m *MessageProcessor) processWindowMethod(
 
 		msg := &dragAndDropMessage{
 			windowId:   wvWindow.id,
+			lifetimeID: wvWindow.callbackLifetimeID,
 			filenames:  payload.Filenames,
 			DropTarget: dropTarget,
 		}

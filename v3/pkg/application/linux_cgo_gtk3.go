@@ -2167,6 +2167,7 @@ func onKeyPressEvent(_ *C.GtkWidget, event *C.GdkEventKey, userData C.uintptr_t)
 	if accelerator, ok := getKeyboardState(event); ok {
 		windowKeyEvents <- &windowKeyEvent{
 			windowId:          windowID,
+			lifetimeID:        globalApplication.Window.lifetimeID(windowID),
 			acceleratorString: accelerator,
 		}
 		// Consume undo/redo so that webkit2gtk's native handler does not also fire.
@@ -2245,8 +2246,9 @@ func sendMessageToBackend(contentManager *C.WebKitUserContentManager, result *C.
 	msg = C.GoString(message)
 	defer C.g_free(C.gpointer(message))
 	windowMessageBuffer <- &windowMessage{
-		windowId: thisWindowID,
-		message:  msg,
+		windowId:   thisWindowID,
+		lifetimeID: globalApplication.Window.lifetimeID(thisWindowID),
+		message:    msg,
 		originInfo: &OriginInfo{
 			Origin: origin,
 		},

@@ -6,7 +6,7 @@
 
 #import "../events/events_darwin.h"
 
-extern void processDragItems(unsigned int windowId, char** arr, int length, int x, int y);
+extern void processDragItems(unsigned int windowId, unsigned long long callbackLifetimeID, char** arr, int length, int x, int y);
 extern void macosOnDragEnter(unsigned int windowId);
 extern void macosOnDragExit(unsigned int windowId);
 extern void macosOnDragOver(unsigned int windowId, int x, int y);
@@ -104,7 +104,7 @@ extern void macosOnDragOver(unsigned int windowId, int x, int y);
         // Use the content view height for conversion
         int y = (int)(contentHeight - dropPointInView.y);
         
-        processDragItems(self.windowId, cArray, (int)count, x, y);
+        processDragItems(self.windowId, self.callbackLifetimeID, cArray, (int)count, x, y);
         free(cArray);
         return YES;
     }

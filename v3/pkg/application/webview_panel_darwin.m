@@ -3,8 +3,8 @@
 #import <Cocoa/Cocoa.h>
 #import "webview_panel_darwin.h"
 
-extern bool processWindowKeyEquivalent(unsigned int, const char*);
-extern void processWindowKeyDownEvent(unsigned int, const char*);
+extern bool processWindowKeyEquivalent(unsigned int, unsigned long long, const char*);
+extern void processWindowKeyDownEvent(unsigned int, unsigned long long, const char*);
 
 @implementation WebviewPanel
 
@@ -39,7 +39,7 @@ extern void processWindowKeyDownEvent(unsigned int, const char*);
         WebviewWindowDelegate* delegate = (WebviewWindowDelegate*)self.delegate;
         NSString* accelerator = acceleratorStringFromKeyEvent(event);
         if (delegate != nil && accelerator.length > 0 &&
-            processWindowKeyEquivalent(delegate.windowId, accelerator.UTF8String)) {
+            processWindowKeyEquivalent(delegate.windowId, delegate.callbackLifetimeID, accelerator.UTF8String)) {
             return;
         }
     }
@@ -50,7 +50,7 @@ extern void processWindowKeyDownEvent(unsigned int, const char*);
     WebviewWindowDelegate* delegate = (WebviewWindowDelegate*)self.delegate;
     NSString* accelerator = acceleratorStringFromKeyEvent(event);
     if (delegate != nil && accelerator.length > 0) {
-        processWindowKeyDownEvent(delegate.windowId, accelerator.UTF8String);
+        processWindowKeyDownEvent(delegate.windowId, delegate.callbackLifetimeID, accelerator.UTF8String);
     }
 }
 

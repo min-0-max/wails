@@ -1745,6 +1745,7 @@ func handleKeyPressed(controller *C.GtkEventControllerKey, keyval C.guint, keyco
 
 	windowKeyEvents <- &windowKeyEvent{
 		windowId:          windowID,
+		lifetimeID:        globalApplication.Window.lifetimeID(windowID),
 		acceleratorString: acc.String(),
 	}
 
@@ -1854,8 +1855,9 @@ func sendMessageToBackend(contentManager *C.WebKitUserContentManager, value *C.J
 	msg := C.GoString(message)
 	defer C.g_free(C.gpointer(message))
 	windowMessageBuffer <- &windowMessage{
-		windowId: thisWindowID,
-		message:  msg,
+		windowId:   thisWindowID,
+		lifetimeID: globalApplication.Window.lifetimeID(thisWindowID),
+		message:    msg,
 		originInfo: &OriginInfo{
 			Origin: origin,
 		},

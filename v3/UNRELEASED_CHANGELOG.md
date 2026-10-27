@@ -25,6 +25,7 @@ After processing, the content will be moved to the main changelog and this file 
 
 ## Fixed
 <!-- Bug fixes -->
+- Ignore queued window callbacks after their source lifetime retires, while preserving warnings for unallocated callback lifetimes
 
 ## Deprecated
 <!-- Soon-to-be removed features -->
