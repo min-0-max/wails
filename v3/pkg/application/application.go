@@ -986,7 +986,9 @@ func (a *App) SetIcon(icon []byte) {
 }
 
 func (a *App) dispatchOnMainThread(fn func()) {
-	// If we are on the main thread, just call the function
+	// If we are on the thread that runs main-thread work, just call the
+	// function. On macOS that is the worker of mainthread_darwin.go, not the
+	// main thread.
 	if a.impl.isOnMainThread() {
 		fn()
 		return

@@ -6,6 +6,7 @@ package application
 #cgo CFLAGS: -mmacosx-version-min=10.10 -x objective-c
 #cgo LDFLAGS: -framework Cocoa
 
+#include "mainthread_darwin.h"
 #include "menuitem_darwin.h"
 
 extern void setMenuItemChecked(void*, unsigned int, bool);
@@ -13,59 +14,75 @@ extern void setMenuItemBitmap(void*, unsigned char*, int);
 
 // Clear and release all menu items in the menu
 void clearMenu(void* nsMenu) {
-	NSMenu *menu = (NSMenu *)nsMenu;
-	[menu removeAllItems];
+	wailsRunOnMain(^{
+		NSMenu *menu = (NSMenu *)nsMenu;
+		[menu removeAllItems];
+	});
 }
 
 
 // Create a new NSMenu
 void* createNSMenu(char* label) {
-	NSMenu *menu = [[NSMenu alloc] init];
-	if( label != NULL && strlen(label) > 0 ) {
-		menu.title = [NSString stringWithUTF8String:label];
-	}
-	if( label != NULL ) {
-		free(label);
-	}
-	[menu setAutoenablesItems:NO];
-	return (void*)menu;
+	return WAILS_ON_MAIN_RESULT(void*, ^void* (void) {
+		NSMenu *menu = [[NSMenu alloc] init];
+		if( label != NULL && strlen(label) > 0 ) {
+			menu.title = [NSString stringWithUTF8String:label];
+		}
+		if( label != NULL ) {
+			free(label);
+		}
+		[menu setAutoenablesItems:NO];
+		return (void*)menu;
+	});
 }
 
 // Release a menu created by createNSMenu once ownership has been
 // transferred (e.g. to an NSMenuItem via setSubmenu:)
 void releaseNSMenu(void* nsMenu) {
-	NSMenu *menu = (NSMenu *)nsMenu;
-	[menu release];
+	wailsRunOnMain(^{
+		NSMenu *menu = (NSMenu *)nsMenu;
+		[menu release];
+	});
 }
 
 void addMenuItem(void* nsMenu, void* nsMenuItem) {
-	NSMenu *menu = (NSMenu *)nsMenu;
-	[menu addItem:nsMenuItem];
+	wailsRunOnMain(^{
+		NSMenu *menu = (NSMenu *)nsMenu;
+		[menu addItem:nsMenuItem];
+	});
 }
 
 // add seperator to menu
 void addMenuSeparator(void* nsMenu) {
-	NSMenu *menu = (NSMenu *)nsMenu;
-	[menu addItem:[NSMenuItem separatorItem]];
+	wailsRunOnMain(^{
+		NSMenu *menu = (NSMenu *)nsMenu;
+		[menu addItem:[NSMenuItem separatorItem]];
+	});
 }
 
 // Set the submenu of a menu item
 void setMenuItemSubmenu(void* nsMenuItem, void* nsMenu) {
-	NSMenuItem *menuItem = (NSMenuItem *)nsMenuItem;
-	NSMenu *menu = (NSMenu *)nsMenu;
-	[menuItem setSubmenu:menu];
+	wailsRunOnMain(^{
+		NSMenuItem *menuItem = (NSMenuItem *)nsMenuItem;
+		NSMenu *menu = (NSMenu *)nsMenu;
+		[menuItem setSubmenu:menu];
+	});
 }
 
 // Add services menu
 static void addServicesMenu(void* menu) {
-	NSMenu *nsMenu = (__bridge NSMenu *)menu;
-	[NSApp setServicesMenu:nsMenu];
+	wailsRunOnMain(^{
+		NSMenu *nsMenu = (__bridge NSMenu *)menu;
+		[NSApp setServicesMenu:nsMenu];
+	});
 }
 
 // Add windows menu
 void addWindowsMenu(void* menu) {
-	NSMenu *nsMenu = (__bridge NSMenu *)menu;
-	[NSApp setWindowsMenu:nsMenu];
+	wailsRunOnMain(^{
+		NSMenu *nsMenu = (__bridge NSMenu *)menu;
+		[NSApp setWindowsMenu:nsMenu];
+	});
 }
 
 

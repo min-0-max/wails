@@ -42,8 +42,14 @@ static int wailsInitAppKit(void) {
 	return (NSApplicationLoad() && NSApp != nil) ? 1 : 0;
 }
 
+// Defined in package application: runs a call on the main thread for the
+// worker that runs the Go code of main-thread steps.
+extern void wailsRunOnMain(void (^call)(void));
+
 static void wailsRunNested(double seconds) {
-	CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, false);
+	wailsRunOnMain(^{
+		CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, false);
+	});
 }
 */
 import "C"
@@ -79,6 +85,8 @@ func (l *Loop) Stop() { C.wailsLoopStop(l.handle) }
 // Free releases the loop.
 func (l *Loop) Free() { C.wailsLoopFree(l.handle) }
 
-// RunNested runs a nested run loop for d without returning, which is what
-// [NSAlert runModal] and menu tracking do while they are on screen.
+// RunNested runs a nested run loop on the main thread for d without
+// returning, which is what [NSAlert runModal] and menu tracking do while they
+// are on screen. Called from a main-thread step, it is forwarded to the main
+// thread as the native calls of package application are.
 func RunNested(d time.Duration) { C.wailsRunNested(C.double(d.Seconds())) }

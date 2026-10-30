@@ -1,6 +1,7 @@
 //go:build darwin && !ios && !server
 
 #include "Cocoa/Cocoa.h"
+#include "mainthread_darwin.h"
 #include "menuitem_darwin.h"
 #include "systemtray_darwin.h"
 
@@ -42,61 +43,67 @@ int systemTrayCoerceEventType(int rawEventType, unsigned long pressedMouseButton
 
 // Create a new system tray
 void* systemTrayNew(long id) {
-	StatusItemController *controller = [[StatusItemController alloc] init];
-	controller.id = id;
-	NSStatusItem *statusItem = [[[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength] retain];
-	controller.statusItem = statusItem;
-	[statusItem setTarget:controller];
-	[statusItem setAction:@selector(statusItemClicked:)];
-	NSButton *button = statusItem.button;
-	[button sendActionOn:(NSEventMaskLeftMouseDown|NSEventMaskRightMouseDown)];
+	return WAILS_ON_MAIN_RESULT(void*, ^void* (void) {
+		StatusItemController *controller = [[StatusItemController alloc] init];
+		controller.id = id;
+		NSStatusItem *statusItem = [[[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength] retain];
+		controller.statusItem = statusItem;
+		[statusItem setTarget:controller];
+		[statusItem setAction:@selector(statusItemClicked:)];
+		NSButton *button = statusItem.button;
+		[button sendActionOn:(NSEventMaskLeftMouseDown|NSEventMaskRightMouseDown)];
 
-	// Install a local event monitor that fires BEFORE the button processes
-	// the mouse-down.  When the pre-click callback says "show menu", we
-	// temporarily set statusItem.menu so the button enters native menu
-	// tracking — this gives proper highlight and does not activate the app.
-	controller.eventMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:
-		(NSEventMaskLeftMouseDown|NSEventMaskRightMouseDown)
-		handler:^NSEvent *(NSEvent *event) {
-			if (event.window != button.window) return event;
+		// Install a local event monitor that fires BEFORE the button processes
+		// the mouse-down.  When the pre-click callback says "show menu", we
+		// temporarily set statusItem.menu so the button enters native menu
+		// tracking — this gives proper highlight and does not activate the app.
+		controller.eventMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:
+			(NSEventMaskLeftMouseDown|NSEventMaskRightMouseDown)
+			handler:^NSEvent *(NSEvent *event) {
+				if (event.window != button.window) return event;
 
-			int action = systrayPreClickCallback((long)controller.id, (int)event.type);
-			if (action == 1 && controller.cachedMenu != nil) {
-				controller.cachedMenu.delegate = controller;
-				statusItem.menu = controller.cachedMenu;
-			}
-			return event;
-		}];
+				int action = systrayPreClickCallback((long)controller.id, (int)event.type);
+				if (action == 1 && controller.cachedMenu != nil) {
+					controller.cachedMenu.delegate = controller;
+					statusItem.menu = controller.cachedMenu;
+				}
+				return event;
+			}];
 
-	return (void*)statusItem;
+		return (void*)statusItem;
+	});
 }
 
 void systemTraySetLabel(void* nsStatusItem, char *label) {
-	if( label == NULL ) {
-		return;
-	}
-	// Set the label on the main thread
-	dispatch_async(dispatch_get_main_queue(), ^{
-		NSStatusItem *statusItem = (NSStatusItem *)nsStatusItem;
-		statusItem.button.title = [NSString stringWithUTF8String:label];
-		free(label);
+	wailsRunOnMain(^{
+		if( label == NULL ) {
+			return;
+		}
+		// Set the label on the main thread
+		dispatch_async(dispatch_get_main_queue(), ^{
+			NSStatusItem *statusItem = (NSStatusItem *)nsStatusItem;
+			statusItem.button.title = [NSString stringWithUTF8String:label];
+			free(label);
+		});
 	});
 }
 
 void systemTraySetANSILabel(void* nsStatusItem, void* label) {
-    if( label == NULL ) {
-        return;
-    }
+    wailsRunOnMain(^{
+        if( label == NULL ) {
+            return;
+        }
 
-    NSMutableAttributedString* attributedString = (NSMutableAttributedString*) label;
+        NSMutableAttributedString* attributedString = (NSMutableAttributedString*) label;
 
-    // Set the label on the main thread.
-    dispatch_async(dispatch_get_main_queue(), ^{
-        // setAttributedTitle: copies the string, so drop the owning
-        // reference we accumulated while building it.
-        NSStatusItem *statusItem = (NSStatusItem *)nsStatusItem;
-        [statusItem setAttributedTitle:attributedString];
-        [attributedString release];
+        // Set the label on the main thread.
+        dispatch_async(dispatch_get_main_queue(), ^{
+            // setAttributedTitle: copies the string, so drop the owning
+            // reference we accumulated while building it.
+            NSStatusItem *statusItem = (NSStatusItem *)nsStatusItem;
+            [statusItem setAttributedTitle:attributedString];
+            [attributedString release];
+        });
     });
 }
 
@@ -166,107 +173,119 @@ NSImage* imageFromBytes(const unsigned char *bytes, int length) {
 
 // Set the icon on the system tray
 void systemTraySetIcon(void* nsStatusItem, void* nsImage, int position, bool isTemplate) {
-	// Set the icon on the main thread
-	dispatch_async(dispatch_get_main_queue(), ^{
-		NSStatusItem *statusItem = (NSStatusItem *)nsStatusItem;
-		NSImage *image = (NSImage *)nsImage;
+	wailsRunOnMain(^{
+		// Set the icon on the main thread
+		dispatch_async(dispatch_get_main_queue(), ^{
+			NSStatusItem *statusItem = (NSStatusItem *)nsStatusItem;
+			NSImage *image = (NSImage *)nsImage;
 
-		NSStatusBar *statusBar = [NSStatusBar systemStatusBar];
-		CGFloat thickness = [statusBar thickness];
-		[image setSize:NSMakeSize(thickness, thickness)];
-		if( isTemplate ) {
-			[image setTemplate:YES];
-		}
-		statusItem.button.image = [image autorelease];
-		statusItem.button.imagePosition = position;
+			NSStatusBar *statusBar = [NSStatusBar systemStatusBar];
+			CGFloat thickness = [statusBar thickness];
+			[image setSize:NSMakeSize(thickness, thickness)];
+			if( isTemplate ) {
+				[image setTemplate:YES];
+			}
+			statusItem.button.image = [image autorelease];
+			statusItem.button.imagePosition = position;
+		});
 	});
 }
 
 // Destroy system tray
 void systemTrayDestroy(void* nsStatusItem) {
-	// Remove the status item from the status bar and its associated menu
-	dispatch_async(dispatch_get_main_queue(), ^{
-		NSStatusItem *statusItem = (NSStatusItem *)nsStatusItem;
-		StatusItemController *controller = (StatusItemController *)[statusItem target];
-		if (controller.eventMonitor) {
-			[NSEvent removeMonitor:controller.eventMonitor];
-			controller.eventMonitor = nil;
-		}
-		[[NSStatusBar systemStatusBar] removeStatusItem:statusItem];
-		[controller release];
-		[statusItem release];
+	wailsRunOnMain(^{
+		// Remove the status item from the status bar and its associated menu
+		dispatch_async(dispatch_get_main_queue(), ^{
+			NSStatusItem *statusItem = (NSStatusItem *)nsStatusItem;
+			StatusItemController *controller = (StatusItemController *)[statusItem target];
+			if (controller.eventMonitor) {
+				[NSEvent removeMonitor:controller.eventMonitor];
+				controller.eventMonitor = nil;
+			}
+			[[NSStatusBar systemStatusBar] removeStatusItem:statusItem];
+			[controller release];
+			[statusItem release];
+		});
 	});
 }
 
 // showMenu is used for programmatic OpenMenu() calls.  Click-triggered
 // menus are handled by the event monitor installed in systemTrayNew.
 void showMenu(void* nsStatusItem, void *nsMenu) {
-	dispatch_async(dispatch_get_main_queue(), ^{
-		NSStatusItem *statusItem = (NSStatusItem *)nsStatusItem;
-		NSMenu *menu = (NSMenu *)nsMenu;
-		StatusItemController *controller = (StatusItemController *)[statusItem target];
+	wailsRunOnMain(^{
+		dispatch_async(dispatch_get_main_queue(), ^{
+			NSStatusItem *statusItem = (NSStatusItem *)nsStatusItem;
+			NSMenu *menu = (NSMenu *)nsMenu;
+			StatusItemController *controller = (StatusItemController *)[statusItem target];
 
-		// Temporarily assign the menu for native tracking.
-		menu.delegate = controller;
-		statusItem.menu = menu;
+			// Temporarily assign the menu for native tracking.
+			menu.delegate = controller;
+			statusItem.menu = menu;
 
-		// Synthesize a mouse-down at the button centre to trigger native
-		// menu tracking (highlights the button, blocks until dismissed).
-		NSRect frame = [statusItem.button convertRect:statusItem.button.bounds toView:nil];
-		NSPoint loc = NSMakePoint(NSMidX(frame), NSMidY(frame));
-		NSEvent *event = [NSEvent mouseEventWithType:NSEventTypeLeftMouseDown
-		                                    location:loc
-		                               modifierFlags:0
-		                                   timestamp:[[NSProcessInfo processInfo] systemUptime]
-		                                windowNumber:statusItem.button.window.windowNumber
-		                                     context:nil
-		                                 eventNumber:0
-		                                  clickCount:1
-		                                    pressure:1.0];
-		[statusItem.button mouseDown:event];
+			// Synthesize a mouse-down at the button centre to trigger native
+			// menu tracking (highlights the button, blocks until dismissed).
+			NSRect frame = [statusItem.button convertRect:statusItem.button.bounds toView:nil];
+			NSPoint loc = NSMakePoint(NSMidX(frame), NSMidY(frame));
+			NSEvent *event = [NSEvent mouseEventWithType:NSEventTypeLeftMouseDown
+			                                    location:loc
+			                               modifierFlags:0
+			                                   timestamp:[[NSProcessInfo processInfo] systemUptime]
+			                                windowNumber:statusItem.button.window.windowNumber
+			                                     context:nil
+			                                 eventNumber:0
+			                                  clickCount:1
+			                                    pressure:1.0];
+			[statusItem.button mouseDown:event];
 
-		// Menu dismissed — restore custom click handling.
-		statusItem.menu = nil;
-		menu.delegate = nil;
+			// Menu dismissed — restore custom click handling.
+			statusItem.menu = nil;
+			menu.delegate = nil;
+		});
 	});
 }
 
 void systemTraySetCachedMenu(void* nsStatusItem, void *nsMenu) {
-	NSStatusItem *statusItem = (NSStatusItem *)nsStatusItem;
-	StatusItemController *controller = (StatusItemController *)[statusItem target];
-	controller.cachedMenu = (NSMenu *)nsMenu;
+	wailsRunOnMain(^{
+		NSStatusItem *statusItem = (NSStatusItem *)nsStatusItem;
+		StatusItemController *controller = (StatusItemController *)[statusItem target];
+		controller.cachedMenu = (NSMenu *)nsMenu;
+	});
 }
 
 void systemTrayGetBounds(void* nsStatusItem, NSRect *rect, void **outScreen) {
-    NSStatusItem *statusItem = (NSStatusItem *)nsStatusItem;
-    NSStatusBarButton *button = statusItem.button;
+    wailsRunOnMain(^{
+        NSStatusItem *statusItem = (NSStatusItem *)nsStatusItem;
+        NSStatusBarButton *button = statusItem.button;
     
-    // Get mouse location and find the screen it's on
-    NSPoint mouseLocation = [NSEvent mouseLocation];
-    NSScreen *screen = nil;
-    NSArray *screens = [NSScreen screens];
+        // Get mouse location and find the screen it's on
+        NSPoint mouseLocation = [NSEvent mouseLocation];
+        NSScreen *screen = nil;
+        NSArray *screens = [NSScreen screens];
     
-    for (NSScreen *candidate in screens) {
-        NSRect frame = [candidate frame];
-        if (NSPointInRect(mouseLocation, frame)) {
-            screen = candidate;
-            break;
+        for (NSScreen *candidate in screens) {
+            NSRect frame = [candidate frame];
+            if (NSPointInRect(mouseLocation, frame)) {
+                screen = candidate;
+                break;
+            }
         }
-    }
-    if (!screen) {
-        screen = [NSScreen mainScreen];
-    }
+        if (!screen) {
+            screen = [NSScreen mainScreen];
+        }
     
-    // Get button frame in screen coordinates
-    NSRect buttonFrame = button.frame;
-    NSRect buttonFrameScreen = [button.window convertRectToScreen:buttonFrame];
+        // Get button frame in screen coordinates
+        NSRect buttonFrame = button.frame;
+        NSRect buttonFrameScreen = [button.window convertRectToScreen:buttonFrame];
     
-    *rect = buttonFrameScreen;
-    *outScreen = (void*)screen;
+        *rect = buttonFrameScreen;
+        *outScreen = (void*)screen;
+    });
 }
 
 NSRect NSScreen_frame(void* screen) {
-    return [(NSScreen*)screen frame];
+    return WAILS_ON_MAIN_RESULT(NSRect, ^NSRect (void) {
+        return [(NSScreen*)screen frame];
+    });
 }
 
 int statusBarHeight() {
@@ -276,52 +295,54 @@ int statusBarHeight() {
 }
 
 void systemTrayPositionWindow(void* nsStatusItem, void* nsWindow, int offset) {
-    // Get the status item's button
-    NSStatusBarButton *button = [(NSStatusItem*)nsStatusItem button];
+    wailsRunOnMain(^{
+        // Get the status item's button
+        NSStatusBarButton *button = [(NSStatusItem*)nsStatusItem button];
 
-    // Get the frame in screen coordinates
-    NSRect frame = [button.window convertRectToScreen:button.frame];
+        // Get the frame in screen coordinates
+        NSRect frame = [button.window convertRectToScreen:button.frame];
 
-    // Get the screen that contains the status item
-    NSScreen *screen = [button.window screen];
-    if (screen == nil) {
-        screen = [NSScreen mainScreen];
-    }
+        // Get the screen that contains the status item
+        NSScreen *screen = [button.window screen];
+        if (screen == nil) {
+            screen = [NSScreen mainScreen];
+        }
 
-    // Get screen's backing scale factor (DPI)
-    CGFloat scaleFactor = [screen backingScaleFactor];
+        // Get screen's backing scale factor (DPI)
+        CGFloat scaleFactor = [screen backingScaleFactor];
 
-    // Get the window's frame
-    NSRect windowFrame = [(NSWindow*)nsWindow frame];
+        // Get the window's frame
+        NSRect windowFrame = [(NSWindow*)nsWindow frame];
 
-    // Calculate the horizontal position (centered under the status item)
-    CGFloat windowX = frame.origin.x + (frame.size.width - windowFrame.size.width) / 2;
+        // Calculate the horizontal position (centered under the status item)
+        CGFloat windowX = frame.origin.x + (frame.size.width - windowFrame.size.width) / 2;
 
-    // If the window would go off the right edge of the screen, adjust it
-    if (windowX + windowFrame.size.width > screen.frame.origin.x + screen.frame.size.width) {
-        windowX = screen.frame.origin.x + screen.frame.size.width - windowFrame.size.width;
-    }
-    // If the window would go off the left edge of the screen, adjust it
-    if (windowX < screen.frame.origin.x) {
-        windowX = screen.frame.origin.x;
-    }
+        // If the window would go off the right edge of the screen, adjust it
+        if (windowX + windowFrame.size.width > screen.frame.origin.x + screen.frame.size.width) {
+            windowX = screen.frame.origin.x + screen.frame.size.width - windowFrame.size.width;
+        }
+        // If the window would go off the left edge of the screen, adjust it
+        if (windowX < screen.frame.origin.x) {
+            windowX = screen.frame.origin.x;
+        }
 
-    // Get screen metrics
-    NSRect screenFrame = [screen frame];
-    NSRect visibleFrame = [screen visibleFrame];
+        // Get screen metrics
+        NSRect screenFrame = [screen frame];
+        NSRect visibleFrame = [screen visibleFrame];
 
-    // Calculate the vertical position
-    CGFloat scaledOffset = offset * scaleFactor;
-    CGFloat windowY = visibleFrame.origin.y + visibleFrame.size.height - windowFrame.size.height - scaledOffset;
+        // Calculate the vertical position
+        CGFloat scaledOffset = offset * scaleFactor;
+        CGFloat windowY = visibleFrame.origin.y + visibleFrame.size.height - windowFrame.size.height - scaledOffset;
 
-    // Set the window's frame
-    windowFrame.origin.x = windowX;
-    windowFrame.origin.y = windowY;
-    [(NSWindow*)nsWindow setFrame:windowFrame display:YES animate:NO];
+        // Set the window's frame
+        windowFrame.origin.x = windowX;
+        windowFrame.origin.y = windowY;
+        [(NSWindow*)nsWindow setFrame:windowFrame display:YES animate:NO];
 
-    // Set window level to popup menu level so it appears above other windows
-    [(NSWindow*)nsWindow setLevel:NSPopUpMenuWindowLevel];
+        // Set window level to popup menu level so it appears above other windows
+        [(NSWindow*)nsWindow setLevel:NSPopUpMenuWindowLevel];
 
-    // Bring window to front
-    [(NSWindow*)nsWindow orderFrontRegardless];
+        // Bring window to front
+        [(NSWindow*)nsWindow orderFrontRegardless];
+    });
 }

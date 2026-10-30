@@ -289,8 +289,8 @@ func (dn *darwinNotifier) RemoveNotification(identifier string) error {
 	return nil
 }
 
-//export captureResult
-func captureResult(channelID C.int, success C.bool, errorMsg *C.char) {
+//export goCaptureResult
+func goCaptureResult(channelID C.int, success C.bool, errorMsg *C.char) {
 	ns := getNotificationService()
 	if ns == nil {
 		return
@@ -319,8 +319,8 @@ func captureResult(channelID C.int, success C.bool, errorMsg *C.char) {
 	close(resultCh)
 }
 
-//export didReceiveNotificationResponse
-func didReceiveNotificationResponse(jsonPayload *C.char, err *C.char) {
+//export goDidReceiveNotificationResponse
+func goDidReceiveNotificationResponse(jsonPayload *C.char, err *C.char) {
 	result := NotificationResult{}
 
 	if err != nil {

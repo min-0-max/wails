@@ -74,7 +74,9 @@ func TestMacPrivateAPINativeVariants(t *testing.T) {
 				if private {
 					args = append(args, "-DEXPECT_PRIVATE=1")
 				}
-				args = append(args, object, "testdata/mac_private_apis/main.m", "-framework", "Cocoa", "-framework", "WebKit", "-o", executable)
+				// The bridge runs its AppKit calls through wailsRunOnMain, which
+				// mainthread_darwin.m defines.
+				args = append(args, object, "mainthread_darwin.m", "testdata/mac_private_apis/main.m", "-framework", "Cocoa", "-framework", "WebKit", "-o", executable)
 				macNativeCommand(t, "xcrun", args...)
 				macNativeCommand(t, executable)
 			})

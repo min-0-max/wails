@@ -22,5 +22,8 @@ void removeAllPendingNotifications(void);
 void removePendingNotification(const char *identifier);
 void removeAllDeliveredNotifications(void);
 void removeDeliveredNotification(const char *identifier);
+// notificationsRunGo runs a Go handler where Go code runs: on the worker of
+// package application for a callback on the main thread.
+void notificationsRunGo(void (^task)(void));
 
 #endif /* NOTIFICATIONS_DARWIN_H */

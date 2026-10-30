@@ -147,6 +147,16 @@ func (w *WebviewWindow) SetOpacity(o float32) Window {
 
 Use the existing `InvokeSync`/`InvokeAsync` helpers to ensure the call runs on the main thread.
 
+On macOS no Go code runs on the main thread: the closure runs on a worker thread while the main thread waits, and each native call that the closure makes must run its AppKit or WebKit code through `wailsRunOnMain` (or `WAILS_ON_MAIN_RESULT` for a result) from `mainthread_darwin.h`, which forwards it to the waiting main thread. A native callback into Go runs its Go handler through `wailsRunOnWorker`, as the functions of `callbacks_darwin.m` do:
+
+```c
+void windowSetOpacity(void* nsWindow, double opacity) {
+	wailsRunOnMain(^{
+		[(NSWindow*)nsWindow setAlphaValue:opacity];
+	});
+}
+```
+
 ### 3.2 Message Processor
 
 If JS needs to invoke the new method, extend the appropriate `pkg/application/messageprocessor_*.go` file. The message processor uses switch-based methods on `MessageProcessor`, not a global `register(...)` call:

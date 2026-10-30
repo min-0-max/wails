@@ -101,8 +101,8 @@ func createLockFile(filename string) (*os.File, error) {
 	return file, nil
 }
 
-//export handleSecondInstanceData
-func handleSecondInstanceData(secondInstanceMessage *C.char) {
+//export goHandleSecondInstanceData
+func goHandleSecondInstanceData(secondInstanceMessage *C.char) {
 	message := C.GoString(secondInstanceMessage)
 	secondInstanceBuffer <- message
 }

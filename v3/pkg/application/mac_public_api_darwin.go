@@ -9,6 +9,7 @@ package application
 #import <Cocoa/Cocoa.h>
 #import <WebKit/WebKit.h>
 
+#include "mainthread_darwin.h"
 #include "webview_window_darwin.h"
 #include "mac_private_api_darwin.h"
 
@@ -66,7 +67,9 @@ void wailsPrivateSetGlassGrouping(void *glassView, const char *groupID, double g
 
 #ifdef WAILS_MAC_DEVTOOLS
 void wailsPrivateOpenWebInspector(void *window) {
-    (void)window;
+    wailsRunOnMain(^{
+        (void)window;
+    });
 }
 
 void wailsPrivateEnableWebInspector(void *window) {

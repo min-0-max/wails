@@ -6,18 +6,21 @@ package application
 #cgo CFLAGS: -mmacosx-version-min=10.13 -x objective-c -DWAILS_MAC_DEVTOOLS
 #cgo LDFLAGS: -framework Cocoa -framework WebKit
 
+#include "mainthread_darwin.h"
 #include "webview_window_darwin.h"
 #include "mac_private_api_darwin.h"
 
 void windowEnableDevTools(void *window) {
-    NSWindow<WailsWebviewWindow> *nsWindow = (NSWindow<WailsWebviewWindow> *)window;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 130300
-    if (@available(macOS 13.3, *)) {
-        nsWindow.webView.inspectable = YES;
-        return;
-    }
-#endif
-    wailsPrivateEnableWebInspector(window);
+    wailsRunOnMain(^{
+        NSWindow<WailsWebviewWindow> *nsWindow = (NSWindow<WailsWebviewWindow> *)window;
+    #if MAC_OS_X_VERSION_MAX_ALLOWED >= 130300
+        if (@available(macOS 13.3, *)) {
+            nsWindow.webView.inspectable = YES;
+            return;
+        }
+    #endif
+        wailsPrivateEnableWebInspector(window);
+    });
 }
 */
 import "C"

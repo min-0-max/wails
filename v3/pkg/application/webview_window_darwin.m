@@ -4,6 +4,7 @@
 #import <QuartzCore/QuartzCore.h>
 #import "webview_window_darwin.h"
 #import "mac_private_api_darwin.h"
+#import "mainthread_darwin.h"
 #import "../events/events_darwin.h"
 extern void processMessage(unsigned int, unsigned long long, const char*, const char *, bool);
 extern void processURLRequest(unsigned int, void *);
@@ -1083,7 +1084,7 @@ void windowSetLiquidGlass(void* nsWindow, int style, int material, double corner
     NSWindow<WailsWebviewWindow>* window = (NSWindow<WailsWebviewWindow>*)nsWindow;
     // Ensure we're on the main thread for UI operations
     if (![NSThread isMainThread]) {
-        dispatch_sync(dispatch_get_main_queue(), ^{
+        wailsRunOnMainSync(^{
             windowSetLiquidGlass(nsWindow, style, material, cornerRadius, r, g, b, a, groupID, groupSpacing);
         });
         return;

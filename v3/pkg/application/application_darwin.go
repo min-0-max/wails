@@ -10,6 +10,7 @@ package application
 #include "application_darwin.h"
 #include "application_darwin_delegate.h"
 #include "webview_window_darwin.h"
+#include "mainthread_darwin.h"
 #include <stdlib.h>
 
 extern void registerListener(unsigned int event);
@@ -85,44 +86,52 @@ static bool isDarkMode(void) {
 }
 
 static char* getAccentColor(void) {
-	@autoreleasepool {
-		NSColor *accentColor;
-		if (@available(macOS 10.14, *)) {
-			accentColor = [NSColor controlAccentColor];
-		} else {
-			// Fallback to system blue for older macOS versions
-			accentColor = [NSColor systemBlueColor];
+	return WAILS_ON_MAIN_RESULT(char*, ^char* (void) {
+		@autoreleasepool {
+			NSColor *accentColor;
+			if (@available(macOS 10.14, *)) {
+				accentColor = [NSColor controlAccentColor];
+			} else {
+				// Fallback to system blue for older macOS versions
+				accentColor = [NSColor systemBlueColor];
+			}
+			// Convert to RGB color space
+			NSColor *rgbColor = [accentColor colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+			if (rgbColor == nil) {
+				rgbColor = accentColor;
+			}
+			// Get RGB components
+			CGFloat red, green, blue, alpha;
+			[rgbColor getRed:&red green:&green blue:&blue alpha:&alpha];
+			// Convert to 0-255 range and format as rgb() string
+			int r = (int)(red * 255);
+			int g = (int)(green * 255);
+			int b = (int)(blue * 255);
+			NSString *colorString = [NSString stringWithFormat:@"rgb(%d,%d,%d)", r, g, b];
+			return strdup([colorString UTF8String]);
 		}
-		// Convert to RGB color space
-		NSColor *rgbColor = [accentColor colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
-		if (rgbColor == nil) {
-			rgbColor = accentColor;
-		}
-		// Get RGB components
-		CGFloat red, green, blue, alpha;
-		[rgbColor getRed:&red green:&green blue:&blue alpha:&alpha];
-		// Convert to 0-255 range and format as rgb() string
-		int r = (int)(red * 255);
-		int g = (int)(green * 255);
-		int b = (int)(blue * 255);
-		NSString *colorString = [NSString stringWithFormat:@"rgb(%d,%d,%d)", r, g, b];
-		return strdup([colorString UTF8String]);
-	}
+	});
 }
 
 static void setApplicationShouldTerminateAfterLastWindowClosed(bool shouldTerminate) {
-	// Get the NSApp delegate
-	AppDelegate *appDelegate = (AppDelegate*)[NSApp delegate];
-	// Set the applicationShouldTerminateAfterLastWindowClosed boolean
-	appDelegate.shouldTerminateWhenLastWindowClosed = shouldTerminate;
+	wailsRunOnMain(^{
+		// Get the NSApp delegate
+		AppDelegate *appDelegate = (AppDelegate*)[NSApp delegate];
+		// Set the applicationShouldTerminateAfterLastWindowClosed boolean
+		appDelegate.shouldTerminateWhenLastWindowClosed = shouldTerminate;
+	});
 }
 
 static void setActivationPolicy(int policy) {
-    [NSApp setActivationPolicy:policy];
+    wailsRunOnMain(^{
+        [NSApp setActivationPolicy:policy];
+    });
 }
 
 static void activateIgnoringOtherApps() {
-	[NSApp activateIgnoringOtherApps:YES];
+	wailsRunOnMain(^{
+		[NSApp activateIgnoringOtherApps:YES];
+	});
 }
 
 static void run(void) {
@@ -135,7 +144,9 @@ static void run(void) {
 
 // destroyApp destroys the application
 static void destroyApp(void) {
-	[NSApp terminate:nil];
+	wailsRunOnMain(^{
+		[NSApp terminate:nil];
+	});
 }
 
 // Set the application menu
@@ -147,13 +158,8 @@ static void setApplicationMenu(void *menu) {
 
 	// AppKit requires the main menu to be replaced on the main thread. Menu.Set
 	// may be called from Wails event listeners, which execute on worker
-	// goroutines, so marshal the update synchronously. Avoid dispatch_sync when
-	// already on the main thread because that would deadlock.
-	if ([NSThread isMainThread]) {
-		apply();
-	} else {
-		dispatch_sync(dispatch_get_main_queue(), apply);
-	}
+	// goroutines, so marshal the update synchronously.
+	wailsRunOnMainSync(apply);
 }
 
 // Get the application name
@@ -168,7 +174,7 @@ static char* getAppName(void) {
 // get the current window ID
 static unsigned int getCurrentWindowID(void) {
 	// AppKit must be accessed on the main thread. This function may be called
-	// from arbitrary Go goroutines, so we hop to the main queue when needed.
+	// from arbitrary Go goroutines, so it hops to the main thread when needed.
 	__block unsigned int result = 0;
 	if (NSApp == nil) {
 		return result;
@@ -192,11 +198,7 @@ static unsigned int getCurrentWindowID(void) {
 			result = delegate.windowId;
 		}
 	};
-	if ([NSThread isMainThread]) {
-		resolve();
-	} else {
-		dispatch_sync(dispatch_get_main_queue(), resolve);
-	}
+	wailsRunOnMainSync(resolve);
 	return result;
 }
 
@@ -211,12 +213,16 @@ static void setApplicationIcon(void *icon, int length) {
 
 // Hide the application
 static void hide(void) {
-	[NSApp hide:nil];
+	wailsRunOnMain(^{
+		[NSApp hide:nil];
+	});
 }
 
 // Show the application
 static void show(void) {
-	[NSApp unhide:nil];
+	wailsRunOnMain(^{
+		[NSApp unhide:nil];
+	});
 }
 
 static const char* serializationNSDictionary(void *dict) {
@@ -236,10 +242,12 @@ static const char* serializationNSDictionary(void *dict) {
 }
 
 static void startSingleInstanceListener(const char *uniqueID) {
-	// Convert to NSString
-	NSString *uid = [NSString stringWithUTF8String:uniqueID];
-	[[NSDistributedNotificationCenter defaultCenter] addObserver:appDelegate
-          selector:@selector(handleSecondInstanceNotification:) name:uid object:nil];
+	wailsRunOnMain(^{
+		// Convert to NSString
+		NSString *uid = [NSString stringWithUTF8String:uniqueID];
+		[[NSDistributedNotificationCenter defaultCenter] addObserver:appDelegate
+	          selector:@selector(handleSecondInstanceNotification:) name:uid object:nil];
+	});
 }
 */
 import "C"
@@ -375,8 +383,8 @@ func newPlatformApp(app *App) *macosApp {
 	}
 }
 
-//export processApplicationEvent
-func processApplicationEvent(eventID C.uint, data unsafe.Pointer) {
+//export goProcessApplicationEvent
+func goProcessApplicationEvent(eventID C.uint, data unsafe.Pointer) {
 	event := newApplicationEvent(events.ApplicationEventType(eventID))
 
 	if data != nil {
@@ -404,16 +412,16 @@ func processApplicationEvent(eventID C.uint, data unsafe.Pointer) {
 	applicationEvents <- event
 }
 
-//export processWindowEvent
-func processWindowEvent(windowID C.uint, eventID C.uint) {
+//export goProcessWindowEvent
+func goProcessWindowEvent(windowID C.uint, eventID C.uint) {
 	windowEvents <- &windowEvent{
 		WindowID: uint(windowID),
 		EventID:  uint(eventID),
 	}
 }
 
-//export processMessage
-func processMessage(windowID C.uint, callbackLifetimeID C.ulonglong, message *C.char, origin *C.char, isMainFrame bool) {
+//export goProcessMessage
+func goProcessMessage(windowID C.uint, callbackLifetimeID C.ulonglong, message *C.char, origin *C.char, isMainFrame C.bool) {
 	o := ""
 	if origin != nil {
 		o = C.GoString(origin)
@@ -424,13 +432,13 @@ func processMessage(windowID C.uint, callbackLifetimeID C.ulonglong, message *C.
 		message:    C.GoString(message),
 		originInfo: &OriginInfo{
 			Origin:      o,
-			IsMainFrame: isMainFrame,
+			IsMainFrame: bool(isMainFrame),
 		},
 	}
 }
 
-//export processURLRequest
-func processURLRequest(windowID C.uint, wkUrlSchemeTask unsafe.Pointer) {
+//export goProcessURLRequest
+func goProcessURLRequest(windowID C.uint, wkUrlSchemeTask unsafe.Pointer) {
 	window, ok := globalApplication.Window.GetByID(uint(windowID))
 	if !ok || window == nil {
 		globalApplication.debug("could not find window with id", "windowID", windowID)
@@ -444,22 +452,22 @@ func processURLRequest(windowID C.uint, wkUrlSchemeTask unsafe.Pointer) {
 	}
 }
 
-//export cancelURLRequest
-func cancelURLRequest(wkUrlSchemeTask unsafe.Pointer) {
+//export goCancelURLRequest
+func goCancelURLRequest(wkUrlSchemeTask unsafe.Pointer) {
 	webview.CancelRequest(wkUrlSchemeTask)
 }
 
-// acceleratorFromKeyPress names a key press the way a key binding is written.
+// goAcceleratorFromKeyPress names a key press the way a key binding is written.
 // The naming lives in Go, in accelerator_darwin.go, so that it can be tested
 // without standing up AppKit. The caller owns the returned string.
 //
-//export acceleratorFromKeyPress
-func acceleratorFromKeyPress(keyCode C.ushort, modifiers C.ulong, character C.uint, hasCharacter C.int) *C.char {
+//export goAcceleratorFromKeyPress
+func goAcceleratorFromKeyPress(keyCode C.ushort, modifiers C.ulong, character C.uint, hasCharacter C.int) *C.char {
 	return C.CString(macAccelerator(uint16(keyCode), uint(modifiers), rune(character), hasCharacter != 0))
 }
 
-//export processWindowKeyDownEvent
-func processWindowKeyDownEvent(windowID C.uint, callbackLifetimeID C.ulonglong, acceleratorString *C.char) {
+//export goProcessWindowKeyDownEvent
+func goProcessWindowKeyDownEvent(windowID C.uint, callbackLifetimeID C.ulonglong, acceleratorString *C.char) {
 	windowKeyEvents <- &windowKeyEvent{
 		windowId:          uint(windowID),
 		lifetimeID:        uint64(callbackLifetimeID),
@@ -467,7 +475,7 @@ func processWindowKeyDownEvent(windowID C.uint, callbackLifetimeID C.ulonglong, 
 	}
 }
 
-// processWindowKeyEquivalent is the synchronous counterpart to
+// goProcessWindowKeyEquivalent is the synchronous counterpart to
 // processWindowKeyDownEvent. Called from -[WebviewWindow performKeyEquivalent:]
 // before the responder chain runs, so the caller can decide whether to
 // consume a modifier-key combo (returning true) or let the WKWebView see it
@@ -475,8 +483,8 @@ func processWindowKeyDownEvent(windowID C.uint, callbackLifetimeID C.ulonglong, 
 // swallow before NSWindow's keyDown: is ever reached — Ctrl+Tab is the
 // canonical example.
 //
-//export processWindowKeyEquivalent
-func processWindowKeyEquivalent(windowID C.uint, callbackLifetimeID C.ulonglong, acceleratorString *C.char) C.bool {
+//export goProcessWindowKeyEquivalent
+func goProcessWindowKeyEquivalent(windowID C.uint, callbackLifetimeID C.ulonglong, acceleratorString *C.char) C.bool {
 	if globalApplication == nil {
 		return C.bool(false)
 	}
@@ -495,8 +503,8 @@ func processWindowKeyEquivalent(windowID C.uint, callbackLifetimeID C.ulonglong,
 	return C.bool(webviewWindow.processKeyBinding(accelerator.String()))
 }
 
-//export processDragItems
-func processDragItems(windowID C.uint, callbackLifetimeID C.ulonglong, arr **C.char, length C.int, x C.int, y C.int) {
+//export goProcessDragItems
+func goProcessDragItems(windowID C.uint, callbackLifetimeID C.ulonglong, arr **C.char, length C.int, x C.int, y C.int) {
 	var filenames []string
 	// Convert the C array to a Go slice
 	goSlice := (*[1 << 30]*C.char)(unsafe.Pointer(arr))[:length:length]
@@ -529,8 +537,8 @@ func processDragItems(windowID C.uint, callbackLifetimeID C.ulonglong, arr **C.c
 	targetWindow.InitiateFrontendDropProcessing(filenames, int(x), int(y))
 }
 
-//export macosOnDragEnter
-func macosOnDragEnter(windowID C.uint) {
+//export goMacosOnDragEnter
+func goMacosOnDragEnter(windowID C.uint) {
 	window, ok := globalApplication.Window.GetByID(uint(windowID))
 	if !ok || window == nil {
 		return
@@ -540,8 +548,8 @@ func macosOnDragEnter(windowID C.uint) {
 	window.ExecJS("window._wails.handleDragEnter();")
 }
 
-//export macosOnDragExit
-func macosOnDragExit(windowID C.uint) {
+//export goMacosOnDragExit
+func goMacosOnDragExit(windowID C.uint) {
 	window, ok := globalApplication.Window.GetByID(uint(windowID))
 	if !ok || window == nil {
 		return
@@ -628,8 +636,8 @@ func writeInt(buf []byte, n int) int {
 	return digits
 }
 
-//export macosOnDragOver
-func macosOnDragOver(windowID C.uint, x C.int, y C.int) {
+//export goMacosOnDragOver
+func goMacosOnDragOver(windowID C.uint, x C.int, y C.int) {
 	winID := uint(windowID)
 	intX, intY := int(x), int(y)
 
@@ -777,19 +785,19 @@ func sendDragUpdate(winID uint, x, y int) {
 	dragOverJSMutex.Unlock()
 }
 
-//export processMenuItemClick
-func processMenuItemClick(menuID C.uint) {
+//export goProcessMenuItemClick
+func goProcessMenuItemClick(menuID C.uint) {
 	menuItemClicked <- uint(menuID)
 }
 
-//export shouldQuitApplication
-func shouldQuitApplication() C.bool {
+//export goShouldQuitApplication
+func goShouldQuitApplication() C.bool {
 	// TODO: This should be configurable
 	return C.bool(globalApplication.shouldQuit())
 }
 
-//export cleanup
-func cleanup() {
+//export goCleanup
+func goCleanup() {
 	globalApplication.cleanup()
 }
 
@@ -812,8 +820,8 @@ func fatalHandler(errFunc func(error)) {
 	return
 }
 
-//export HandleOpenFile
-func HandleOpenFile(filePath *C.char) {
+//export goHandleOpenFile
+func goHandleOpenFile(filePath *C.char) {
 	goFilepath := C.GoString(filePath)
 	// Create new application event context
 	eventContext := newApplicationEventContext()
@@ -825,8 +833,8 @@ func HandleOpenFile(filePath *C.char) {
 	}
 }
 
-//export HandleOpenURL
-func HandleOpenURL(urlCString *C.char) {
+//export goHandleOpenURL
+func goHandleOpenURL(urlCString *C.char) {
 	urlString := C.GoString(urlCString)
 	eventContext := newApplicationEventContext()
 	eventContext.setURL(urlString)

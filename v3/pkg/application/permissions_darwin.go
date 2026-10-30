@@ -19,7 +19,7 @@ const (
 	captureDecisionDeny
 )
 
-// resolveMediaCapturePermission answers a getUserMedia request for the given
+// goResolveMediaCapturePermission answers a getUserMedia request for the given
 // window, applying its Permissions.
 //
 // With no delegate method, WebKit takes the default action, which on Cocoa is
@@ -28,8 +28,8 @@ const (
 // PermissionDefault. This is what gives PermissionAllow and PermissionDeny
 // their meaning there; PermissionDefault keeps that same prompt.
 //
-//export resolveMediaCapturePermission
-func resolveMediaCapturePermission(windowID C.uint, needAudio C.bool, needVideo C.bool) C.int {
+//export goResolveMediaCapturePermission
+func goResolveMediaCapturePermission(windowID C.uint, needAudio C.bool, needVideo C.bool) C.int {
 	return C.int(mediaCaptureDecision(uint(windowID), bool(needAudio), bool(needVideo)))
 }
 

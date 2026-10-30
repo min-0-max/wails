@@ -6,21 +6,26 @@ package application
 #cgo CFLAGS: -mmacosx-version-min=10.13 -x objective-c
 #cgo LDFLAGS: -framework Cocoa -mmacosx-version-min=10.13
 
+#include "mainthread_darwin.h"
 #import <Cocoa/Cocoa.h>
 #import <stdlib.h>
 
 bool setClipboardText(const char* text) {
-	NSPasteboard *pasteBoard = [NSPasteboard generalPasteboard];
-	NSError *error = nil;
-	NSString *string = [NSString stringWithUTF8String:text];
-	[pasteBoard clearContents];
-	return [pasteBoard setString:string forType:NSPasteboardTypeString];
+	return WAILS_ON_MAIN_RESULT(bool, ^bool (void) {
+		NSPasteboard *pasteBoard = [NSPasteboard generalPasteboard];
+		NSError *error = nil;
+		NSString *string = [NSString stringWithUTF8String:text];
+		[pasteBoard clearContents];
+		return [pasteBoard setString:string forType:NSPasteboardTypeString];
+	});
 }
 
 const char* getClipboardText() {
-	NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
-	NSString *text = [pasteboard stringForType:NSPasteboardTypeString];
-	return [text UTF8String];
+	return WAILS_ON_MAIN_RESULT(const char*, ^const char* (void) {
+		NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
+		NSString *text = [pasteboard stringForType:NSPasteboardTypeString];
+		return [text UTF8String];
+	});
 }
 
 */

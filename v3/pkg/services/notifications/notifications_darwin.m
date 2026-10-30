@@ -24,8 +24,22 @@ bool checkBundleIdentifier(void) {
     return YES;
 }
 
-extern void captureResult(int channelID, bool success, const char* error);
-extern void didReceiveNotificationResponse(const char *jsonPayload, const char* error);
+extern void goCaptureResult(int channelID, bool success, char* error);
+extern void goDidReceiveNotificationResponse(char *jsonPayload, char* error);
+
+// The native code reaches Go only through these functions, which run the Go
+// handlers with notificationsRunGo.
+static void captureResult(int channelID, bool success, const char* error) {
+    notificationsRunGo(^{
+        goCaptureResult(channelID, success, (char *)error);
+    });
+}
+
+static void didReceiveNotificationResponse(const char *jsonPayload, const char* error) {
+    notificationsRunGo(^{
+        goDidReceiveNotificationResponse((char *)jsonPayload, (char *)error);
+    });
+}
 
 @interface NotificationsDelegate : NSObject <UNUserNotificationCenterDelegate>
 @end

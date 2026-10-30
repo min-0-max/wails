@@ -25,6 +25,7 @@ After processing, the content will be moved to the main changelog and this file 
 
 ## Fixed
 <!-- Bug fixes -->
+- Run no Go code on the main thread on macOS. The JavaScriptCore collector scans the stack of each thread that holds the lock of a VM from its stack pointer to the origin of its stack, and WebKit takes that lock on the main thread of the application process; a scan while the main thread ran Go code on a goroutine stack read a stack pointer outside the thread's stack, and the allocation of the copy ended the process in `pas_panic_on_out_of_memory_error`. The closures of `InvokeSync`, `InvokeSyncWithResult` and `InvokeAsync` and the Go handlers of the native callbacks now run on a worker thread that a locked goroutine serves, while the main thread waits in C and runs the AppKit and WebKit calls that the worker forwards for that step (`wailsRunOnWorker`, `wailsRunOnMain` and `wailsRunOnMainSync` in `mainthread_darwin.h`), so a step stays one main-thread step and the answers of delegate callbacks stay synchronous, also from the nested run loop of a modal dialog, a menu or a drag session
 - Ignore queued window callbacks after their source lifetime retires, while preserving warnings for unallocated callback lifetimes
 
 ## Deprecated

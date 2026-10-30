@@ -7,8 +7,8 @@ package application
 */
 import "C"
 
-//export windowShouldUnconditionallyClose
-func windowShouldUnconditionallyClose(windowId C.uint) C.bool {
+//export goWindowShouldUnconditionallyClose
+func goWindowShouldUnconditionallyClose(windowId C.uint) C.bool {
 	window, _ := globalApplication.Window.GetByID(uint(windowId))
 	if window == nil {
 		globalApplication.debug("windowShouldUnconditionallyClose: window not found", "windowId", windowId)
@@ -19,8 +19,8 @@ func windowShouldUnconditionallyClose(windowId C.uint) C.bool {
 	return C.bool(unconditionallyClose)
 }
 
-//export windowIsHidden
-func windowIsHidden(windowId C.uint) C.bool {
+//export goWindowIsHidden
+func goWindowIsHidden(windowId C.uint) C.bool {
 	window, _ := globalApplication.Window.GetByID(uint(windowId))
 	if window == nil {
 		return C.bool(false)

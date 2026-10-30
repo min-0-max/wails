@@ -6,6 +6,7 @@ package application
 #cgo CFLAGS: -mmacosx-version-min=10.13
 #cgo LDFLAGS: -framework Carbon
 
+#include "mainthread_darwin.h"
 #include <Carbon/Carbon.h>
 
 extern void globalShortcutCallback(int id);
@@ -39,20 +40,24 @@ static void installHotKeyHandler(void) {
 // registerHotKey binds (keyCode, modifiers) to id and returns the OSStatus.
 // On success *outRef receives the hot key reference used to unregister later.
 static int registerHotKey(unsigned int keyCode, unsigned int modifiers, int id, EventHotKeyRef *outRef) {
-    installHotKeyHandler();
-    EventHotKeyID hkID;
-    hkID.signature = 'WLgs'; // "Wails global shortcut"
-    hkID.id = (unsigned int)id;
-    OSStatus status = RegisterEventHotKey(keyCode, modifiers, hkID,
-                                          GetApplicationEventTarget(), 0, outRef);
-    return (int)status;
+    return WAILS_ON_MAIN_RESULT(int, ^int (void) {
+        installHotKeyHandler();
+        EventHotKeyID hkID;
+        hkID.signature = 'WLgs'; // "Wails global shortcut"
+        hkID.id = (unsigned int)id;
+        OSStatus status = RegisterEventHotKey(keyCode, modifiers, hkID,
+                                              GetApplicationEventTarget(), 0, outRef);
+        return (int)status;
+    });
 }
 
 static int unregisterHotKey(EventHotKeyRef ref) {
-    if (ref == NULL) {
-        return 0;
-    }
-    return (int)UnregisterEventHotKey(ref);
+    return WAILS_ON_MAIN_RESULT(int, ^int (void) {
+        if (ref == NULL) {
+            return 0;
+        }
+        return (int)UnregisterEventHotKey(ref);
+    });
 }
 */
 import "C"
@@ -142,8 +147,8 @@ func (g *macosGlobalShortcuts) unregisterAll() error {
 	return firstErr
 }
 
-//export globalShortcutCallback
-func globalShortcutCallback(id C.int) {
+//export goGlobalShortcutCallback
+func goGlobalShortcutCallback(id C.int) {
 	if globalApplication != nil && globalApplication.GlobalShortcut != nil {
 		globalApplication.GlobalShortcut.dispatch(int(id))
 	}

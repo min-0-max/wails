@@ -6,6 +6,7 @@ package application
 #cgo CFLAGS: -mmacosx-version-min=10.13 -x objective-c
 #cgo LDFLAGS: -framework Cocoa -framework WebKit
 
+#include "mainthread_darwin.h"
 #include "Cocoa/Cocoa.h"
 #include "menuitem_darwin.h"
 #include "application_darwin.h"
@@ -14,51 +15,48 @@ package application
 
 // Create menu item
 void* newMenuItem(unsigned int menuItemID, char *label, bool disabled, char* tooltip, char* selector) {
-	MenuItem *menuItem = [MenuItem new];
+	return WAILS_ON_MAIN_RESULT(void*, ^void* (void) {
+		MenuItem *menuItem = [MenuItem new];
 
-    // Label
-    menuItem.title = [NSString stringWithUTF8String:label];
+	    // Label
+	    menuItem.title = [NSString stringWithUTF8String:label];
 
-	// Always set the action regardless of disabled state
-	if (selector != NULL) {
-		menuItem.action = NSSelectorFromString([NSString stringWithUTF8String:selector]);
-		menuItem.target = disabled ? nil : nil; // Role-based actions always use responder chain
-	} else {
-		menuItem.action = @selector(handleClick);
-		menuItem.target = disabled ? nil : menuItem; // Custom callbacks need target=menuItem when enabled
-	}
-    menuItem.menuItemID = menuItemID;
+		// Always set the action regardless of disabled state
+		if (selector != NULL) {
+			menuItem.action = NSSelectorFromString([NSString stringWithUTF8String:selector]);
+			menuItem.target = disabled ? nil : nil; // Role-based actions always use responder chain
+		} else {
+			menuItem.action = @selector(handleClick);
+			menuItem.target = disabled ? nil : menuItem; // Custom callbacks need target=menuItem when enabled
+		}
+	    menuItem.menuItemID = menuItemID;
 
-	menuItem.enabled = !disabled;
+		menuItem.enabled = !disabled;
 
-	// Tooltip
-	if( tooltip != NULL ) {
-		menuItem.toolTip = [NSString stringWithUTF8String:tooltip];
-		free(tooltip);
-	}
+		// Tooltip
+		if( tooltip != NULL ) {
+			menuItem.toolTip = [NSString stringWithUTF8String:tooltip];
+			free(tooltip);
+		}
 
-	// Set the tag
-	[menuItem setTag:menuItemID];
+		// Set the tag
+		[menuItem setTag:menuItemID];
 
-	return (void*)menuItem;
+		return (void*)menuItem;
+	});
 }
 
 // set menu item label
 //
 // Apply on the main thread synchronously so a menu reopen reflects the new
 // title. See setMenuItemChecked() below / wailsapp/wails#5002 for the stale-
-// state race that motivates the isMainThread/dispatch_sync pattern.
+// state race that motivates the synchronous update.
 void setMenuItemLabel(void* nsMenuItem, char *label) {
     MenuItem *menuItem = (MenuItem *)nsMenuItem;
-    if ([NSThread isMainThread]) {
+    wailsRunOnMainSync(^{
         menuItem.title = [NSString stringWithUTF8String:label];
         free(label);
-    } else {
-        dispatch_sync(dispatch_get_main_queue(), ^{
-            menuItem.title = [NSString stringWithUTF8String:label];
-            free(label);
-        });
-    }
+    });
 }
 
 // set menu item disabled
@@ -84,11 +82,7 @@ void setMenuItemDisabled(void* nsMenuItem, bool disabled) {
             }
         }
     };
-    if ([NSThread isMainThread]) {
-        apply();
-    } else {
-        dispatch_sync(dispatch_get_main_queue(), apply);
-    }
+    wailsRunOnMainSync(apply);
 }
 
 // set menu item hidden
@@ -96,13 +90,9 @@ void setMenuItemDisabled(void* nsMenuItem, bool disabled) {
 // Apply synchronously (see setMenuItemChecked() / wailsapp/wails#5002).
 void setMenuItemHidden(void* nsMenuItem, bool hidden) {
     MenuItem *menuItem = (MenuItem *)nsMenuItem;
-    if ([NSThread isMainThread]) {
+    wailsRunOnMainSync(^{
         [menuItem setHidden:hidden];
-    } else {
-        dispatch_sync(dispatch_get_main_queue(), ^{
-            [menuItem setHidden:hidden];
-        });
-    }
+    });
 }
 
 // set menu item tooltip
@@ -110,15 +100,10 @@ void setMenuItemHidden(void* nsMenuItem, bool hidden) {
 // Apply synchronously (see setMenuItemChecked() / wailsapp/wails#5002).
 void setMenuItemTooltip(void* nsMenuItem, char *tooltip) {
     MenuItem *menuItem = (MenuItem *)nsMenuItem;
-    if ([NSThread isMainThread]) {
+    wailsRunOnMainSync(^{
         menuItem.toolTip = [NSString stringWithUTF8String:tooltip];
         free(tooltip);
-    } else {
-        dispatch_sync(dispatch_get_main_queue(), ^{
-            menuItem.toolTip = [NSString stringWithUTF8String:tooltip];
-            free(tooltip);
-        });
-    }
+    });
 }
 
 // Check menu item
@@ -126,18 +111,14 @@ void setMenuItemTooltip(void* nsMenuItem, char *tooltip) {
 // Apply the state change synchronously so a subsequent menu open reflects it.
 // dispatch_async enqueues the assignment for the next runloop turn, which can
 // land *after* the menu has already been rendered if the user reopens the menu
-// quickly (see wailsapp/wails#5002). dispatch_sync from the main thread would
-// deadlock, so short-circuit when we are already on the main thread.
+// quickly (see wailsapp/wails#5002). wailsRunOnMainSync runs it directly on the
+// main thread, forwards it from the worker and uses dispatch_sync elsewhere.
 void setMenuItemChecked(void* nsMenuItem, bool checked) {
     MenuItem *menuItem = (MenuItem *)nsMenuItem;
     NSControlStateValue newState = checked ? NSControlStateValueOn : NSControlStateValueOff;
-    if ([NSThread isMainThread]) {
+    wailsRunOnMainSync(^{
         menuItem.state = newState;
-    } else {
-        dispatch_sync(dispatch_get_main_queue(), ^{
-            menuItem.state = newState;
-        });
-    }
+    });
 }
 
 NSString* translateKey(NSString* key) {
@@ -305,11 +286,13 @@ NSString* translateKey(NSString* key) {
 
 // Set the menuitem key equivalent
 void setMenuItemKeyEquivalent(void* nsMenuItem, char *key, int modifier) {
-	MenuItem *menuItem = (MenuItem *)nsMenuItem;
-	NSString *nskey = [NSString stringWithUTF8String:key];
-	menuItem.keyEquivalent = translateKey(nskey);
-	menuItem.keyEquivalentModifierMask = modifier;
-	free(key);
+	wailsRunOnMain(^{
+		MenuItem *menuItem = (MenuItem *)nsMenuItem;
+		NSString *nskey = [NSString stringWithUTF8String:key];
+		menuItem.keyEquivalent = translateKey(nskey);
+		menuItem.keyEquivalentModifierMask = modifier;
+		free(key);
+	});
 }
 
 // Call the copy selector on the pasteboard
@@ -337,16 +320,20 @@ void performSelectorOnMainThreadForFirstResponder(SEL selector) {
 }
 
 void setMenuItemBitmap(void* nsMenuItem, unsigned char *bitmap, int length) {
-	MenuItem *menuItem = (MenuItem *)nsMenuItem;
-	NSImage *image = [[NSImage alloc] initWithData:[NSData dataWithBytes:bitmap length:length]];
-	[menuItem setImage:image];
-	// The menu item retains its image
-	[image release];
+	wailsRunOnMain(^{
+		MenuItem *menuItem = (MenuItem *)nsMenuItem;
+		NSImage *image = [[NSImage alloc] initWithData:[NSData dataWithBytes:bitmap length:length]];
+		[menuItem setImage:image];
+		// The menu item retains its image
+		[image release];
+	});
 }
 
 void destroyMenuItem(void* nsMenuItem) {
-	MenuItem *menuItem = (MenuItem *)nsMenuItem;
-	[menuItem release];
+	wailsRunOnMain(^{
+		MenuItem *menuItem = (MenuItem *)nsMenuItem;
+		[menuItem release];
+	});
 }
 */
 import "C"

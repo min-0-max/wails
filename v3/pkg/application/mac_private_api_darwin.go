@@ -8,6 +8,7 @@ package application
 
 #import <Cocoa/Cocoa.h>
 #import <WebKit/WebKit.h>
+#include "mainthread_darwin.h"
 #include <string.h>
 
 #include "webview_window_darwin.h"
@@ -91,21 +92,23 @@ void wailsPrivateSetGlassGrouping(void *glassView, const char *groupID, double g
 @end
 
 void wailsPrivateOpenWebInspector(void *window) {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 120000
-	if (@available(macOS 12.0, *)) {
-		dispatch_async(dispatch_get_main_queue(), ^{
-			NSWindow<WailsWebviewWindow> *nsWindow = (NSWindow<WailsWebviewWindow> *)window;
-			@try {
-				[nsWindow.webView._inspector show];
-			} @catch (NSException *exception) {
-				NSLog(@"Opening the inspector failed: %@", exception.reason);
-				return;
-			}
-		});
-	}
-#else
-	NSLog(@"Opening the inspector needs at least macOS 12");
-#endif
+	wailsRunOnMain(^{
+	#if MAC_OS_X_VERSION_MAX_ALLOWED >= 120000
+		if (@available(macOS 12.0, *)) {
+			dispatch_async(dispatch_get_main_queue(), ^{
+				NSWindow<WailsWebviewWindow> *nsWindow = (NSWindow<WailsWebviewWindow> *)window;
+				@try {
+					[nsWindow.webView._inspector show];
+				} @catch (NSException *exception) {
+					NSLog(@"Opening the inspector failed: %@", exception.reason);
+					return;
+				}
+			});
+		}
+	#else
+		NSLog(@"Opening the inspector needs at least macOS 12");
+	#endif
+	});
 }
 
 void wailsPrivateEnableWebInspector(void *window) {

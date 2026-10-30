@@ -6,6 +6,7 @@ package application
 #cgo CFLAGS: -mmacosx-version-min=10.13 -x objective-c
 #cgo LDFLAGS: -framework Cocoa -framework WebKit
 
+#include "mainthread_darwin.h"
 #include <stdlib.h>
 #include "Cocoa/Cocoa.h"
 #include "menuitem_darwin.h"
@@ -13,18 +14,22 @@ package application
 
 // Show the system tray icon
 static void systemTrayShow(void* nsStatusItem) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-		// Get the NSStatusItem
-        NSStatusItem *statusItem = (NSStatusItem *)nsStatusItem;
-        [statusItem setVisible:YES];
+    wailsRunOnMain(^{
+        dispatch_async(dispatch_get_main_queue(), ^{
+    		// Get the NSStatusItem
+            NSStatusItem *statusItem = (NSStatusItem *)nsStatusItem;
+            [statusItem setVisible:YES];
+        });
     });
 }
 
 // Hide the system tray icon
 static void systemTrayHide(void* nsStatusItem) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        NSStatusItem *statusItem = (NSStatusItem *)nsStatusItem;
-        [statusItem setVisible:NO];
+    wailsRunOnMain(^{
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSStatusItem *statusItem = (NSStatusItem *)nsStatusItem;
+            [statusItem setVisible:NO];
+        });
     });
 }
 
@@ -88,8 +93,8 @@ func coerceStatusItemEventType(rawEventType int, pressedMouseButtons uint64) int
 	return int(C.systemTrayCoerceEventType(C.int(rawEventType), C.ulong(pressedMouseButtons)))
 }
 
-//export systrayClickCallback
-func systrayClickCallback(id C.long, buttonID C.int) {
+//export goSystrayClickCallback
+func goSystrayClickCallback(id C.long, buttonID C.int) {
 	// Get the system tray
 	systemTray := systemTrayMap[uint(id)]
 	if systemTray == nil {
@@ -99,13 +104,13 @@ func systrayClickCallback(id C.long, buttonID C.int) {
 	systemTray.processClick(button(buttonID))
 }
 
-// systrayPreClickCallback is called from the NSEvent local monitor BEFORE the
+// goSystrayPreClickCallback is called from the NSEvent local monitor BEFORE the
 // button processes the mouse-down.  It returns 1 when the framework should
 // show the menu via native tracking (proper highlight, no app activation),
 // or 0 to let the action handler fire for custom click/window behaviour.
 //
-//export systrayPreClickCallback
-func systrayPreClickCallback(id C.long, buttonID C.int) C.int {
+//export goSystrayPreClickCallback
+func goSystrayPreClickCallback(id C.long, buttonID C.int) C.int {
 	systemTray := systemTrayMap[uint(id)]
 	if systemTray == nil || systemTray.nsMenu == nil {
 		return 0

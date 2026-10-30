@@ -6,6 +6,7 @@ package application
 #cgo CFLAGS: -mmacosx-version-min=10.13 -x objective-c
 #cgo LDFLAGS: -framework Cocoa -framework WebKit -framework QuartzCore
 
+#include "mainthread_darwin.h"
 #include "application_darwin.h"
 #include "webview_window_darwin.h"
 #include "mac_private_api_darwin.h"
@@ -47,9 +48,11 @@ static NSWindow<WailsWebviewWindow>* webviewHost(void* window) {
 }
 
 const char* windowTitlebarDoubleClickPreference(void) {
-	NSString *action = [[NSUserDefaults standardUserDefaults]
-		stringForKey:@"AppleActionOnDoubleClick"];
-	return action == nil ? "" : [action UTF8String];
+	return WAILS_ON_MAIN_RESULT(const char*, ^const char* (void) {
+		NSString *action = [[NSUserDefaults standardUserDefaults]
+			stringForKey:@"AppleActionOnDoubleClick"];
+		return action == nil ? "" : [action UTF8String];
+	});
 }
 
 static NSWindowStyleMask windowStyleMask(bool frameless, bool squareCorners, double cornerRadius) {
@@ -104,141 +107,143 @@ void* windowNew(unsigned int id, unsigned long long callbackLifetimeID, int widt
 		struct WebviewPreferences preferences, const char* applicationNameForUserAgent,
 		bool isPanel, struct PanelPreferences panelPreferences, bool isNotchWindow,
 		int notchContentWidth, int notchContentHeight, const char* notchScreenID) {
-	NSWindow<WailsWebviewWindow>* window = createNativeWindow(width, height, frameless,
-		squareCorners, cornerRadius, isPanel, panelPreferences, isNotchWindow);
+	return WAILS_ON_MAIN_RESULT(void*, ^void* (void) {
+		NSWindow<WailsWebviewWindow>* window = createNativeWindow(width, height, frameless,
+			squareCorners, cornerRadius, isPanel, panelPreferences, isNotchWindow);
 
-	// Note: collectionBehavior is set later via windowSetCollectionBehavior()
-	// to allow user configuration of Space and fullscreen behavior
+		// Note: collectionBehavior is set later via windowSetCollectionBehavior()
+		// to allow user configuration of Space and fullscreen behavior
 
-	// Create delegate
-	WebviewWindowDelegate* delegate = [[WebviewWindowDelegate alloc] init];
-	[delegate autorelease];
+		// Create delegate
+		WebviewWindowDelegate* delegate = [[WebviewWindowDelegate alloc] init];
+		[delegate autorelease];
 
-	// Set delegate
-	[window setDelegate:delegate];
-	delegate.windowId = id;
-	delegate.callbackLifetimeID = callbackLifetimeID;
+		// Set delegate
+		[window setDelegate:delegate];
+		delegate.windowId = id;
+		delegate.callbackLifetimeID = callbackLifetimeID;
 
-	// Add NSView to window
-	NSView* view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, width-1, height-1)];
-	[view autorelease];
+		// Add NSView to window
+		NSView* view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, width-1, height-1)];
+		[view autorelease];
 
-	[view setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
-	if (frameless && !squareCorners && cornerRadius > 0) {
-		[view setWantsLayer:YES];
-		view.layer.cornerRadius = cornerRadius;
-		view.layer.masksToBounds = YES;
-	}
-	[window setContentView:view];
-	if (frameless && !squareCorners && cornerRadius == 0) {
-		[window setTitlebarAppearsTransparent:YES];
-		[window setTitleVisibility:NSWindowTitleHidden];
-	}
-
-	// Embed wkwebview in window
-	NSRect frame = NSMakeRect(0, 0, width, height);
-	WKWebViewConfiguration* config = [[WKWebViewConfiguration alloc] init];
-	[config autorelease];
-
-	// Set preferences
-    if (preferences.TabFocusesLinks != NULL) {
-		config.preferences.tabFocusesLinks = *preferences.TabFocusesLinks;
-	}
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 110300
-	if (@available(macOS 11.3, *)) {
-		if (preferences.TextInteractionEnabled != NULL) {
-			config.preferences.textInteractionEnabled = *preferences.TextInteractionEnabled;
+		[view setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
+		if (frameless && !squareCorners && cornerRadius > 0) {
+			[view setWantsLayer:YES];
+			view.layer.cornerRadius = cornerRadius;
+			view.layer.masksToBounds = YES;
 		}
-	}
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 120300
-	if (@available(macOS 12.3, *)) {
-         if (preferences.FullscreenEnabled != NULL) {
-             config.preferences.elementFullscreenEnabled = *preferences.FullscreenEnabled;
-         }
-     }
-#endif
-
-	if (preferences.AllowsAirPlayForMediaPlayback != NULL) {
-		config.allowsAirPlayForMediaPlayback = *preferences.AllowsAirPlayForMediaPlayback;
-	}
-	if (preferences.EnableAutoplayWithoutUserAction != NULL && *preferences.EnableAutoplayWithoutUserAction) {
-		config.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
-	}
-	if (preferences.JavaScriptCanOpenWindowsAutomatically != NULL) {
-		config.preferences.javaScriptCanOpenWindowsAutomatically = *preferences.JavaScriptCanOpenWindowsAutomatically;
-	}
-	if (preferences.MinimumFontSize != NULL) {
-		config.preferences.minimumFontSize = *preferences.MinimumFontSize;
-	}
-	config.suppressesIncrementalRendering = true;
-	if (applicationNameForUserAgent != NULL && applicationNameForUserAgent[0] != '\0') {
-		config.applicationNameForUserAgent = [NSString stringWithUTF8String:applicationNameForUserAgent];
-	} else {
-		config.applicationNameForUserAgent = @"wails.io";
-	}
-	[config setURLSchemeHandler:delegate forURLScheme:@"wails"];
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101500
- 	if (@available(macOS 10.15, *)) {
-         config.preferences.fraudulentWebsiteWarningEnabled = fraudulentWebsiteWarningEnabled;
-	}
-#endif
-
-	// Setup user content controller
-    WKUserContentController* userContentController = [WKUserContentController new];
-	[userContentController autorelease];
-
-    [userContentController addScriptMessageHandler:delegate name:@"external"];
-    config.userContentController = userContentController;
-
-	WKWebView* webView = [[WKWebView alloc] initWithFrame:frame configuration:config];
-	[webView autorelease];
-
-    if (preferences.AllowsBackForwardNavigationGestures != NULL) {
-        webView.allowsBackForwardNavigationGestures = *preferences.AllowsBackForwardNavigationGestures;
-    }
-	if (preferences.AllowsMagnification != NULL) {
-		webView.allowsMagnification = *preferences.AllowsMagnification;
-	}
-
-	[view addSubview:webView];
-
-    // support webview events
-    [webView setNavigationDelegate:delegate];
-    [webView setUIDelegate:delegate];
-
-	// Ensure webview resizes with the window
-	[webView setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
-
-	if( enableDragAndDrop ) {
-		WebviewDrag* dragView = [[WebviewDrag alloc] initWithFrame:NSMakeRect(0, 0, width-1, height-1)];
-		[dragView autorelease];
-
-		// The mask must be on the drag view itself: it was previously set on
-		// the content view (a no-op), leaving the drag overlay frozen at its
-		// creation size — files dragged over any area gained by resizing the
-		// window were rejected (#3743).
-		[dragView setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
-		[view addSubview:dragView];
-		dragView.windowId = id;
-		dragView.callbackLifetimeID = callbackLifetimeID;
-	}
-
-	window.webView = webView;
-	if (isNotchWindow) {
-		NSString* targetScreenID = nil;
-		if (notchScreenID != NULL && notchScreenID[0] != '\0') {
-			targetScreenID = [NSString stringWithUTF8String:notchScreenID];
+		[window setContentView:view];
+		if (frameless && !squareCorners && cornerRadius == 0) {
+			[window setTitlebarAppearsTransparent:YES];
+			[window setTitleVisibility:NSWindowTitleHidden];
 		}
-		[(WebviewNotchWindow*)window configureWebView:webView
-			contentWidth:notchContentWidth
-			contentHeight:notchContentHeight
-			targetScreenID:targetScreenID];
-	}
-	return window;
+
+		// Embed wkwebview in window
+		NSRect frame = NSMakeRect(0, 0, width, height);
+		WKWebViewConfiguration* config = [[WKWebViewConfiguration alloc] init];
+		[config autorelease];
+
+		// Set preferences
+	    if (preferences.TabFocusesLinks != NULL) {
+			config.preferences.tabFocusesLinks = *preferences.TabFocusesLinks;
+		}
+
+	#if MAC_OS_X_VERSION_MAX_ALLOWED >= 110300
+		if (@available(macOS 11.3, *)) {
+			if (preferences.TextInteractionEnabled != NULL) {
+				config.preferences.textInteractionEnabled = *preferences.TextInteractionEnabled;
+			}
+		}
+	#endif
+
+	#if MAC_OS_X_VERSION_MAX_ALLOWED >= 120300
+		if (@available(macOS 12.3, *)) {
+	         if (preferences.FullscreenEnabled != NULL) {
+	             config.preferences.elementFullscreenEnabled = *preferences.FullscreenEnabled;
+	         }
+	     }
+	#endif
+
+		if (preferences.AllowsAirPlayForMediaPlayback != NULL) {
+			config.allowsAirPlayForMediaPlayback = *preferences.AllowsAirPlayForMediaPlayback;
+		}
+		if (preferences.EnableAutoplayWithoutUserAction != NULL && *preferences.EnableAutoplayWithoutUserAction) {
+			config.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
+		}
+		if (preferences.JavaScriptCanOpenWindowsAutomatically != NULL) {
+			config.preferences.javaScriptCanOpenWindowsAutomatically = *preferences.JavaScriptCanOpenWindowsAutomatically;
+		}
+		if (preferences.MinimumFontSize != NULL) {
+			config.preferences.minimumFontSize = *preferences.MinimumFontSize;
+		}
+		config.suppressesIncrementalRendering = true;
+		if (applicationNameForUserAgent != NULL && applicationNameForUserAgent[0] != '\0') {
+			config.applicationNameForUserAgent = [NSString stringWithUTF8String:applicationNameForUserAgent];
+		} else {
+			config.applicationNameForUserAgent = @"wails.io";
+		}
+		[config setURLSchemeHandler:delegate forURLScheme:@"wails"];
+
+	#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101500
+	 	if (@available(macOS 10.15, *)) {
+	         config.preferences.fraudulentWebsiteWarningEnabled = fraudulentWebsiteWarningEnabled;
+		}
+	#endif
+
+		// Setup user content controller
+	    WKUserContentController* userContentController = [WKUserContentController new];
+		[userContentController autorelease];
+
+	    [userContentController addScriptMessageHandler:delegate name:@"external"];
+	    config.userContentController = userContentController;
+
+		WKWebView* webView = [[WKWebView alloc] initWithFrame:frame configuration:config];
+		[webView autorelease];
+
+	    if (preferences.AllowsBackForwardNavigationGestures != NULL) {
+	        webView.allowsBackForwardNavigationGestures = *preferences.AllowsBackForwardNavigationGestures;
+	    }
+		if (preferences.AllowsMagnification != NULL) {
+			webView.allowsMagnification = *preferences.AllowsMagnification;
+		}
+
+		[view addSubview:webView];
+
+	    // support webview events
+	    [webView setNavigationDelegate:delegate];
+	    [webView setUIDelegate:delegate];
+
+		// Ensure webview resizes with the window
+		[webView setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
+
+		if( enableDragAndDrop ) {
+			WebviewDrag* dragView = [[WebviewDrag alloc] initWithFrame:NSMakeRect(0, 0, width-1, height-1)];
+			[dragView autorelease];
+
+			// The mask must be on the drag view itself: it was previously set on
+			// the content view (a no-op), leaving the drag overlay frozen at its
+			// creation size — files dragged over any area gained by resizing the
+			// window were rejected (#3743).
+			[dragView setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
+			[view addSubview:dragView];
+			dragView.windowId = id;
+			dragView.callbackLifetimeID = callbackLifetimeID;
+		}
+
+		window.webView = webView;
+		if (isNotchWindow) {
+			NSString* targetScreenID = nil;
+			if (notchScreenID != NULL && notchScreenID[0] != '\0') {
+				targetScreenID = [NSString stringWithUTF8String:notchScreenID];
+			}
+			[(WebviewNotchWindow*)window configureWebView:webView
+				contentWidth:notchContentWidth
+				contentHeight:notchContentHeight
+				targetScreenID:targetScreenID];
+		}
+		return window;
+	});
 }
 
 
@@ -305,231 +310,311 @@ void setInvisibleTitleBarHeight(void* window, unsigned int height) {
 
 // Make NSWindow transparent
 void windowSetTransparent(void* nsWindow) {
-	[nativeWindow(nsWindow) setOpaque:NO];
-	[nativeWindow(nsWindow) setBackgroundColor:[NSColor clearColor]];
+	wailsRunOnMain(^{
+		[nativeWindow(nsWindow) setOpaque:NO];
+		[nativeWindow(nsWindow) setBackgroundColor:[NSColor clearColor]];
+	});
 }
 
 void windowSetInvisibleTitleBar(void* nsWindow, unsigned int height) {
-	NSWindow* window = nativeWindow(nsWindow);
-	WebviewWindowDelegate* delegate = (WebviewWindowDelegate*)[window delegate];
-	delegate.invisibleTitleBarHeight = height;
+	wailsRunOnMain(^{
+		NSWindow* window = nativeWindow(nsWindow);
+		WebviewWindowDelegate* delegate = (WebviewWindowDelegate*)[window delegate];
+		delegate.invisibleTitleBarHeight = height;
+	});
 }
 
 
 // Set the title of the NSWindow
 void windowSetTitle(void* nsWindow, char* title) {
-	NSString* nsTitle = [NSString stringWithUTF8String:title];
-	[nativeWindow(nsWindow) setTitle:nsTitle];
-	free(title);
+	wailsRunOnMain(^{
+		NSString* nsTitle = [NSString stringWithUTF8String:title];
+		[nativeWindow(nsWindow) setTitle:nsTitle];
+		free(title);
+	});
 }
 
 // Set the size of the NSWindow
 void windowSetSize(void* nsWindow, int width, int height) {
-	// Set window size on main thread
-	NSWindow* window = nativeWindow(nsWindow);
-	NSSize contentSize = [window contentRectForFrameRect:NSMakeRect(0, 0, width, height)].size;
-	[window setContentSize:contentSize];
-	[window setFrame:NSMakeRect(window.frame.origin.x, window.frame.origin.y, width, height) display:YES animate:YES];
+	wailsRunOnMain(^{
+		// Set window size on main thread
+		NSWindow* window = nativeWindow(nsWindow);
+		NSSize contentSize = [window contentRectForFrameRect:NSMakeRect(0, 0, width, height)].size;
+		[window setContentSize:contentSize];
+		[window setFrame:NSMakeRect(window.frame.origin.x, window.frame.origin.y, width, height) display:YES animate:YES];
+	});
 }
 
 // Set NSWindow always on top
 void windowSetAlwaysOnTop(void* nsWindow, bool alwaysOnTop) {
-	// Set window always on top on main thread
-	[nativeWindow(nsWindow) setLevel:alwaysOnTop ? NSFloatingWindowLevel : NSNormalWindowLevel];
+	wailsRunOnMain(^{
+		// Set window always on top on main thread
+		[nativeWindow(nsWindow) setLevel:alwaysOnTop ? NSFloatingWindowLevel : NSNormalWindowLevel];
+	});
 }
 
-void setNormalWindowLevel(void* nsWindow) { [nativeWindow(nsWindow) setLevel:NSNormalWindowLevel]; }
-void setFloatingWindowLevel(void* nsWindow) { [nativeWindow(nsWindow) setLevel:NSFloatingWindowLevel];}
-void setPopUpMenuWindowLevel(void* nsWindow) { [nativeWindow(nsWindow) setLevel:NSPopUpMenuWindowLevel]; }
-void setMainMenuWindowLevel(void* nsWindow) { [nativeWindow(nsWindow) setLevel:NSMainMenuWindowLevel]; }
-void setStatusWindowLevel(void* nsWindow) { [nativeWindow(nsWindow) setLevel:NSStatusWindowLevel]; }
-void setModalPanelWindowLevel(void* nsWindow) { [nativeWindow(nsWindow) setLevel:NSModalPanelWindowLevel]; }
-void setScreenSaverWindowLevel(void* nsWindow) { [nativeWindow(nsWindow) setLevel:NSScreenSaverWindowLevel]; }
-void setTornOffMenuWindowLevel(void* nsWindow) { [nativeWindow(nsWindow) setLevel:NSTornOffMenuWindowLevel]; }
+void setNormalWindowLevel(void* nsWindow) {
+    wailsRunOnMain(^{
+        [nativeWindow(nsWindow) setLevel:NSNormalWindowLevel];
+    });
+}
+void setFloatingWindowLevel(void* nsWindow) {
+    wailsRunOnMain(^{
+        [nativeWindow(nsWindow) setLevel:NSFloatingWindowLevel];
+    });
+}
+void setPopUpMenuWindowLevel(void* nsWindow) {
+    wailsRunOnMain(^{
+        [nativeWindow(nsWindow) setLevel:NSPopUpMenuWindowLevel];
+    });
+}
+void setMainMenuWindowLevel(void* nsWindow) {
+    wailsRunOnMain(^{
+        [nativeWindow(nsWindow) setLevel:NSMainMenuWindowLevel];
+    });
+}
+void setStatusWindowLevel(void* nsWindow) {
+    wailsRunOnMain(^{
+        [nativeWindow(nsWindow) setLevel:NSStatusWindowLevel];
+    });
+}
+void setModalPanelWindowLevel(void* nsWindow) {
+    wailsRunOnMain(^{
+        [nativeWindow(nsWindow) setLevel:NSModalPanelWindowLevel];
+    });
+}
+void setScreenSaverWindowLevel(void* nsWindow) {
+    wailsRunOnMain(^{
+        [nativeWindow(nsWindow) setLevel:NSScreenSaverWindowLevel];
+    });
+}
+void setTornOffMenuWindowLevel(void* nsWindow) {
+    wailsRunOnMain(^{
+        [nativeWindow(nsWindow) setLevel:NSTornOffMenuWindowLevel];
+    });
+}
 
 // Set NSWindow collection behavior for Spaces and fullscreen
 // The behavior parameter is a bitmask that can combine multiple NSWindowCollectionBehavior values
 void windowSetCollectionBehavior(void* nsWindow, int behavior) {
-	NSWindow* window = nativeWindow(nsWindow);
-	if (behavior == 0) {
-		// Default: use FullScreenPrimary for backwards compatibility
-		window.collectionBehavior = NSWindowCollectionBehaviorFullScreenPrimary;
-	} else {
-		// Pass through the combined bitmask directly
-		window.collectionBehavior = (NSWindowCollectionBehavior)behavior;
-	}
+	wailsRunOnMain(^{
+		NSWindow* window = nativeWindow(nsWindow);
+		if (behavior == 0) {
+			// Default: use FullScreenPrimary for backwards compatibility
+			window.collectionBehavior = NSWindowCollectionBehaviorFullScreenPrimary;
+		} else {
+			// Pass through the combined bitmask directly
+			window.collectionBehavior = (NSWindowCollectionBehavior)behavior;
+		}
+	});
 }
 
 // Set NSWindow tabbing mode (macOS 10.12+)
 void windowSetTabbingMode(void* nsWindow, int mode) {
-	NSWindow* window = nativeWindow(nsWindow);
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101200
-	if (@available(macOS 10.12, *)) {
-		[window setTabbingMode:mode];
-	}
-#endif
+	wailsRunOnMain(^{
+		NSWindow* window = nativeWindow(nsWindow);
+	#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101200
+		if (@available(macOS 10.12, *)) {
+			[window setTabbingMode:mode];
+		}
+	#endif
+	});
 }
 
 // Load URL in NSWindow
 void navigationLoadURL(void* nsWindow, char* url) {
-	// Load URL on main thread
-	NSURL* nsURL = [NSURL URLWithString:[NSString stringWithUTF8String:url]];
-	NSURLRequest* request = [NSURLRequest requestWithURL:nsURL];
-	NSWindow<WailsWebviewWindow>* window = webviewHost(nsWindow);
-	[window.webView loadRequest:request];
-	free(url);
+	wailsRunOnMain(^{
+		// Load URL on main thread
+		NSURL* nsURL = [NSURL URLWithString:[NSString stringWithUTF8String:url]];
+		NSURLRequest* request = [NSURLRequest requestWithURL:nsURL];
+		NSWindow<WailsWebviewWindow>* window = webviewHost(nsWindow);
+		[window.webView loadRequest:request];
+		free(url);
+	});
 }
 
 // Set NSWindow resizable
 void windowSetResizable(void* nsWindow, bool resizable) {
-	// Set window resizable on main thread
-	NSWindow* window = nativeWindow(nsWindow);
-	if (resizable) {
-		NSWindowStyleMask styleMask = [window styleMask] | NSWindowStyleMaskResizable;
-		[window setStyleMask:styleMask];
-	} else {
-		NSWindowStyleMask styleMask = [window styleMask] & ~NSWindowStyleMaskResizable;
-		[window setStyleMask:styleMask];
-	}
+	wailsRunOnMain(^{
+		// Set window resizable on main thread
+		NSWindow* window = nativeWindow(nsWindow);
+		if (resizable) {
+			NSWindowStyleMask styleMask = [window styleMask] | NSWindowStyleMaskResizable;
+			[window setStyleMask:styleMask];
+		} else {
+			NSWindowStyleMask styleMask = [window styleMask] & ~NSWindowStyleMaskResizable;
+			[window setStyleMask:styleMask];
+		}
+	});
 }
 
 // Set NSWindow min size
 void windowSetMinSize(void* nsWindow, int width, int height) {
-	// Set window min size on main thread
-	NSWindow* window = nativeWindow(nsWindow);
-	NSSize contentSize = [window contentRectForFrameRect:NSMakeRect(0, 0, width, height)].size;
-	[window setContentMinSize:contentSize];
-	NSSize size = { width, height };
-	[window setMinSize:size];
+	wailsRunOnMain(^{
+		// Set window min size on main thread
+		NSWindow* window = nativeWindow(nsWindow);
+		NSSize contentSize = [window contentRectForFrameRect:NSMakeRect(0, 0, width, height)].size;
+		[window setContentMinSize:contentSize];
+		NSSize size = { width, height };
+		[window setMinSize:size];
+	});
 }
 
 // Set NSWindow max size
 void windowSetMaxSize(void* nsWindow, int width, int height) {
-	// Set window max size on main thread
-	NSSize size = { FLT_MAX, FLT_MAX };
-	size.width = width > 0 ? width : FLT_MAX;
-	size.height = height > 0 ? height : FLT_MAX;
-	NSWindow* window = nativeWindow(nsWindow);
-	NSSize contentSize = [window contentRectForFrameRect:NSMakeRect(0, 0, size.width, size.height)].size;
-	[window setContentMaxSize:contentSize];
-	[window setMaxSize:size];
+	wailsRunOnMain(^{
+		// Set window max size on main thread
+		NSSize size = { FLT_MAX, FLT_MAX };
+		size.width = width > 0 ? width : FLT_MAX;
+		size.height = height > 0 ? height : FLT_MAX;
+		NSWindow* window = nativeWindow(nsWindow);
+		NSSize contentSize = [window contentRectForFrameRect:NSMakeRect(0, 0, size.width, size.height)].size;
+		[window setContentMaxSize:contentSize];
+		[window setMaxSize:size];
+	});
 }
 
 // windowZoomReset
 void windowZoomReset(void* nsWindow) {
-	NSWindow<WailsWebviewWindow>* window = webviewHost(nsWindow);
-	[window.webView setMagnification:1.0];
+	wailsRunOnMain(^{
+		NSWindow<WailsWebviewWindow>* window = webviewHost(nsWindow);
+		[window.webView setMagnification:1.0];
+	});
 }
 
 // windowZoomSet
 void windowZoomSet(void* nsWindow, double zoom) {
-	NSWindow<WailsWebviewWindow>* window = webviewHost(nsWindow);
-	// Reset zoom
-	[window.webView setMagnification:zoom];
+	wailsRunOnMain(^{
+		NSWindow<WailsWebviewWindow>* window = webviewHost(nsWindow);
+		// Reset zoom
+		[window.webView setMagnification:zoom];
+	});
 }
 
 // windowZoomGet
 float windowZoomGet(void* nsWindow) {
-	NSWindow<WailsWebviewWindow>* window = webviewHost(nsWindow);
-	// Get zoom
-	return [window.webView magnification];
+	return WAILS_ON_MAIN_RESULT(float, ^float (void) {
+		NSWindow<WailsWebviewWindow>* window = webviewHost(nsWindow);
+		// Get zoom
+		return [window.webView magnification];
+	});
 }
 
 // windowZoomIn
 void windowZoomIn(void* nsWindow) {
-	NSWindow<WailsWebviewWindow>* window = webviewHost(nsWindow);
-	// Zoom in
-	[window.webView setMagnification:window.webView.magnification + 0.05];
+	wailsRunOnMain(^{
+		NSWindow<WailsWebviewWindow>* window = webviewHost(nsWindow);
+		// Zoom in
+		[window.webView setMagnification:window.webView.magnification + 0.05];
+	});
 }
 
 // windowZoomOut
 void windowZoomOut(void* nsWindow) {
-	NSWindow<WailsWebviewWindow>* window = webviewHost(nsWindow);
-	// Zoom out
-	if( window.webView.magnification > 1.05 ) {
-		[window.webView setMagnification:window.webView.magnification - 0.05];
-	} else {
-		[window.webView setMagnification:1.0];
-	}
+	wailsRunOnMain(^{
+		NSWindow<WailsWebviewWindow>* window = webviewHost(nsWindow);
+		// Zoom out
+		if( window.webView.magnification > 1.05 ) {
+			[window.webView setMagnification:window.webView.magnification - 0.05];
+		} else {
+			[window.webView setMagnification:1.0];
+		}
+	});
 }
 
 // windowReload reloads the current page using the cached version.
 void windowReload(void* nsWindow) {
-	NSWindow<WailsWebviewWindow>* window = webviewHost(nsWindow);
-	[window.webView reload];
+	wailsRunOnMain(^{
+		NSWindow<WailsWebviewWindow>* window = webviewHost(nsWindow);
+		[window.webView reload];
+	});
 }
 
 // windowForceReload reloads the current page bypassing the cache.
 void windowForceReload(void* nsWindow) {
-	NSWindow<WailsWebviewWindow>* window = webviewHost(nsWindow);
-	[window.webView reloadFromOrigin];
+	wailsRunOnMain(^{
+		NSWindow<WailsWebviewWindow>* window = webviewHost(nsWindow);
+		[window.webView reloadFromOrigin];
+	});
 }
 
 // createModalWindow presents a modal window as a sheet attached to the parent window
 void createModalWindow(void* parentWindowPtr, void* modalWindowPtr) {
-	if (parentWindowPtr == NULL || modalWindowPtr == NULL) {
-		return;
-	}
+	wailsRunOnMain(^{
+		if (parentWindowPtr == NULL || modalWindowPtr == NULL) {
+			return;
+		}
 
-	NSWindow* parentWindow = (NSWindow*)parentWindowPtr;
-	NSWindow* modalWindow = (NSWindow*)modalWindowPtr;
+		NSWindow* parentWindow = (NSWindow*)parentWindowPtr;
+		NSWindow* modalWindow = (NSWindow*)modalWindowPtr;
 
-	// Present the modal window as a sheet attached to the parent window
-	// Must be dispatched to the main thread for UI thread safety
-	dispatch_async(dispatch_get_main_queue(), ^{
-		[parentWindow beginSheet:modalWindow completionHandler:^(NSModalResponse returnCode) {
-			// Sheet was dismissed - window will be released automatically
-		}];
+		// Present the modal window as a sheet attached to the parent window
+		// Must be dispatched to the main thread for UI thread safety
+		dispatch_async(dispatch_get_main_queue(), ^{
+			[parentWindow beginSheet:modalWindow completionHandler:^(NSModalResponse returnCode) {
+				// Sheet was dismissed - window will be released automatically
+			}];
+		});
 	});
 }
 
 // set the window position relative to the screen
 void windowSetRelativePosition(void* nsWindow, int x, int y) {
-	NSWindow* window = nativeWindow(nsWindow);
-	NSScreen* screen = [window screen];
-	if( screen == NULL ) {
-		screen = [NSScreen mainScreen];
-	}
-	NSRect windowFrame = [window frame];
-	NSRect screenFrame = [screen frame];
-	windowFrame.origin.x = screenFrame.origin.x + (float)x;
-	windowFrame.origin.y = (screenFrame.origin.y + screenFrame.size.height) - windowFrame.size.height - (float)y;
+	wailsRunOnMain(^{
+		NSWindow* window = nativeWindow(nsWindow);
+		NSScreen* screen = [window screen];
+		if( screen == NULL ) {
+			screen = [NSScreen mainScreen];
+		}
+		NSRect windowFrame = [window frame];
+		NSRect screenFrame = [screen frame];
+		windowFrame.origin.x = screenFrame.origin.x + (float)x;
+		windowFrame.origin.y = (screenFrame.origin.y + screenFrame.size.height) - windowFrame.size.height - (float)y;
 
-	[window setFrame:windowFrame display:TRUE animate:FALSE];
+		[window setFrame:windowFrame display:TRUE animate:FALSE];
+	});
 }
 
 // Execute JS in NSWindow
 void windowExecJS(void* nsWindow, const char* js) {
-	NSWindow<WailsWebviewWindow>* window = webviewHost(nsWindow);
-	[window.webView evaluateJavaScript:[NSString stringWithUTF8String:js] completionHandler:nil];
-	free((void*)js);
+	wailsRunOnMain(^{
+		NSWindow<WailsWebviewWindow>* window = webviewHost(nsWindow);
+		[window.webView evaluateJavaScript:[NSString stringWithUTF8String:js] completionHandler:nil];
+		free((void*)js);
+	});
 }
 
 // Execute JS without allocation - buffer is NOT freed
 void windowExecJSNoAlloc(void* nsWindow, const char* js) {
-	NSWindow<WailsWebviewWindow>* window = webviewHost(nsWindow);
-	[window.webView evaluateJavaScript:[NSString stringWithUTF8String:js] completionHandler:nil];
+	wailsRunOnMain(^{
+		NSWindow<WailsWebviewWindow>* window = webviewHost(nsWindow);
+		[window.webView evaluateJavaScript:[NSString stringWithUTF8String:js] completionHandler:nil];
+	});
 }
 
 // Make NSWindow backdrop translucent
 void windowSetTranslucent(void* nsWindow) {
-	// Get window
-	NSWindow* window = nativeWindow(nsWindow);
+	wailsRunOnMain(^{
+		// Get window
+		NSWindow* window = nativeWindow(nsWindow);
 
-	id contentView = [window contentView];
-	NSVisualEffectView *effectView = [NSVisualEffectView alloc];
-	NSRect bounds = [contentView bounds];
-	[effectView initWithFrame:bounds];
-	[effectView setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
-	[effectView setBlendingMode:NSVisualEffectBlendingModeBehindWindow];
-	[effectView setState:NSVisualEffectStateActive];
-	[contentView addSubview:effectView positioned:NSWindowBelow relativeTo:nil];
+		id contentView = [window contentView];
+		NSVisualEffectView *effectView = [NSVisualEffectView alloc];
+		NSRect bounds = [contentView bounds];
+		[effectView initWithFrame:bounds];
+		[effectView setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
+		[effectView setBlendingMode:NSVisualEffectBlendingModeBehindWindow];
+		[effectView setState:NSVisualEffectStateActive];
+		[contentView addSubview:effectView positioned:NSWindowBelow relativeTo:nil];
+	});
 }
 
 // Make webview background transparent
 void webviewSetTransparent(void* nsWindow) {
-	NSWindow<WailsWebviewWindow>* window = webviewHost(nsWindow);
-	wailsPrivateSetWebviewTransparent((void*)window.webView);
+	wailsRunOnMain(^{
+		NSWindow<WailsWebviewWindow>* window = webviewHost(nsWindow);
+		wailsPrivateSetWebviewTransparent((void*)window.webView);
+	});
 }
 
 // Set webview background colour
@@ -540,57 +625,74 @@ void webviewSetBackgroundColour(void* nsWindow, int r, int g, int b, int alpha) 
 
 // Set the window background colour
 void windowSetBackgroundColour(void* nsWindow, int r, int g, int b, int alpha) {
-	[nativeWindow(nsWindow) setBackgroundColor:[NSColor colorWithRed:r/255.0 green:g/255.0 blue:b/255.0 alpha:alpha/255.0]];
+	wailsRunOnMain(^{
+		[nativeWindow(nsWindow) setBackgroundColor:[NSColor colorWithRed:r/255.0 green:g/255.0 blue:b/255.0 alpha:alpha/255.0]];
+	});
 }
 
 bool windowIsMaximised(void* nsWindow) {
-	return [nativeWindow(nsWindow) isZoomed];
+	return WAILS_ON_MAIN_RESULT(bool, ^bool (void) {
+		return [nativeWindow(nsWindow) isZoomed];
+	});
 }
 
 bool windowIsFullscreen(void* nsWindow) {
-	return [nativeWindow(nsWindow) styleMask] & NSWindowStyleMaskFullScreen;
+	return WAILS_ON_MAIN_RESULT(bool, ^bool (void) {
+		return [nativeWindow(nsWindow) styleMask] & NSWindowStyleMaskFullScreen;
+	});
 }
 
 bool windowIsMinimised(void* nsWindow) {
-	return [nativeWindow(nsWindow) isMiniaturized];
+	return WAILS_ON_MAIN_RESULT(bool, ^bool (void) {
+		return [nativeWindow(nsWindow) isMiniaturized];
+	});
 }
 
 bool windowIsFocused(void* nsWindow) {
-	return [nativeWindow(nsWindow) isKeyWindow];
+	return WAILS_ON_MAIN_RESULT(bool, ^bool (void) {
+		return [nativeWindow(nsWindow) isKeyWindow];
+	});
 }
 
 // Set Window fullscreen
 void windowFullscreen(void* nsWindow) {
-	if( windowIsFullscreen(nsWindow) ) {
-		return;
-	}
-	dispatch_async(dispatch_get_main_queue(), ^{
-		[nativeWindow(nsWindow) toggleFullScreen:nil];
-	});}
+	wailsRunOnMain(^{
+		if( windowIsFullscreen(nsWindow) ) {
+			return;
+		}
+		dispatch_async(dispatch_get_main_queue(), ^{
+			[nativeWindow(nsWindow) toggleFullScreen:nil];
+		});
+	});
+}
 
 void windowUnFullscreen(void* nsWindow) {
-	if( !windowIsFullscreen(nsWindow) ) {
-		return;
-	}
-	dispatch_async(dispatch_get_main_queue(), ^{
-		[nativeWindow(nsWindow) toggleFullScreen:nil];
+	wailsRunOnMain(^{
+		if( !windowIsFullscreen(nsWindow) ) {
+			return;
+		}
+		dispatch_async(dispatch_get_main_queue(), ^{
+			[nativeWindow(nsWindow) toggleFullScreen:nil];
+		});
 	});
 }
 
 // restore window to normal size
 void windowRestore(void* nsWindow) {
-	// If window is fullscreen
-	if([nativeWindow(nsWindow) styleMask] & NSWindowStyleMaskFullScreen) {
-		[nativeWindow(nsWindow) toggleFullScreen:nil];
-	}
-	// If window is maximised
-	if([nativeWindow(nsWindow) isZoomed]) {
-		[nativeWindow(nsWindow) zoom:nil];
-	}
-	// If window in minimised
-	if([nativeWindow(nsWindow) isMiniaturized]) {
-		[nativeWindow(nsWindow) deminiaturize:nil];
-	}
+	wailsRunOnMain(^{
+		// If window is fullscreen
+		if([nativeWindow(nsWindow) styleMask] & NSWindowStyleMaskFullScreen) {
+			[nativeWindow(nsWindow) toggleFullScreen:nil];
+		}
+		// If window is maximised
+		if([nativeWindow(nsWindow) isZoomed]) {
+			[nativeWindow(nsWindow) zoom:nil];
+		}
+		// If window in minimised
+		if([nativeWindow(nsWindow) isMiniaturized]) {
+			[nativeWindow(nsWindow) deminiaturize:nil];
+		}
+	});
 }
 
 // forward declaration - defined later in this file
@@ -598,137 +700,164 @@ static void setButtonState(void *button, int state);
 
 // setFullscreenButtonState sets the fullscreen button state
 static void setFullscreenButtonState(void* nsWindow, int state) {
-	NSButton *fullscreenButton = [nativeWindow(nsWindow) standardWindowButton:NSWindowZoomButton];
-	setButtonState(fullscreenButton, state);
+	wailsRunOnMain(^{
+		NSButton *fullscreenButton = [nativeWindow(nsWindow) standardWindowButton:NSWindowZoomButton];
+		setButtonState(fullscreenButton, state);
+	});
 }
 
 // Set the titlebar style
 void windowSetTitleBarAppearsTransparent(void* nsWindow, bool transparent) {
-	if( transparent ) {
-		[nativeWindow(nsWindow) setTitlebarAppearsTransparent:true];
-	} else {
-		[nativeWindow(nsWindow) setTitlebarAppearsTransparent:false];
-	}
+	wailsRunOnMain(^{
+		if( transparent ) {
+			[nativeWindow(nsWindow) setTitlebarAppearsTransparent:true];
+		} else {
+			[nativeWindow(nsWindow) setTitlebarAppearsTransparent:false];
+		}
+	});
 }
 
 // Set window fullsize content view
 void windowSetFullSizeContent(void* nsWindow, bool fullSize) {
-	NSWindow* window = nativeWindow(nsWindow);
-	if( fullSize ) {
-		[window setStyleMask:[window styleMask] | NSWindowStyleMaskFullSizeContentView];
-	} else {
-		[window setStyleMask:[window styleMask] & ~NSWindowStyleMaskFullSizeContentView];
-	}
+	wailsRunOnMain(^{
+		NSWindow* window = nativeWindow(nsWindow);
+		if( fullSize ) {
+			[window setStyleMask:[window styleMask] | NSWindowStyleMaskFullSizeContentView];
+		} else {
+			[window setStyleMask:[window styleMask] & ~NSWindowStyleMaskFullSizeContentView];
+		}
+	});
 }
 
 // Set Hide Titlebar
 void windowSetHideTitleBar(void* nsWindow, bool hideTitlebar) {
-	NSWindow* window = nativeWindow(nsWindow);
-	if( hideTitlebar ) {
-		[window setStyleMask:[window styleMask] & ~NSWindowStyleMaskTitled];
-	} else {
-		[window setStyleMask:[window styleMask] | NSWindowStyleMaskTitled];
-	}
+	wailsRunOnMain(^{
+		NSWindow* window = nativeWindow(nsWindow);
+		if( hideTitlebar ) {
+			[window setStyleMask:[window styleMask] & ~NSWindowStyleMaskTitled];
+		} else {
+			[window setStyleMask:[window styleMask] | NSWindowStyleMaskTitled];
+		}
+	});
 }
 
 // Set Hide Title in Titlebar
 void windowSetHideTitle(void* nsWindow, bool hideTitle) {
-	if( hideTitle ) {
-		[nativeWindow(nsWindow) setTitleVisibility:NSWindowTitleHidden];
-	} else {
-		[nativeWindow(nsWindow) setTitleVisibility:NSWindowTitleVisible];
-	}
+	wailsRunOnMain(^{
+		if( hideTitle ) {
+			[nativeWindow(nsWindow) setTitleVisibility:NSWindowTitleHidden];
+		} else {
+			[nativeWindow(nsWindow) setTitleVisibility:NSWindowTitleVisible];
+		}
+	});
 }
 
 // Set Window use toolbar
 void windowSetUseToolbar(void* nsWindow, bool useToolbar) {
-	NSWindow* window = nativeWindow(nsWindow);
-	if( useToolbar ) {
-		NSToolbar *toolbar = [[NSToolbar alloc] initWithIdentifier:@"wails.toolbar"];
-		[toolbar autorelease];
-		[window setToolbar:toolbar];
-	} else {
-		[window setToolbar:nil];
-	}
+	wailsRunOnMain(^{
+		NSWindow* window = nativeWindow(nsWindow);
+		if( useToolbar ) {
+			NSToolbar *toolbar = [[NSToolbar alloc] initWithIdentifier:@"wails.toolbar"];
+			[toolbar autorelease];
+			[window setToolbar:toolbar];
+		} else {
+			[window setToolbar:nil];
+		}
+	});
 }
 
 // Set window toolbar style
 void windowSetToolbarStyle(void* nsWindow, int style) {
-	NSWindow* window = nativeWindow(nsWindow);
+	wailsRunOnMain(^{
+		NSWindow* window = nativeWindow(nsWindow);
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 110000
-	if (@available(macOS 11.0, *)) {
-		NSToolbar* toolbar = [window toolbar];
-		if ( toolbar == nil ) {
-			return;
+	#if MAC_OS_X_VERSION_MAX_ALLOWED >= 110000
+		if (@available(macOS 11.0, *)) {
+			NSToolbar* toolbar = [window toolbar];
+			if ( toolbar == nil ) {
+				return;
+			}
+			[window setToolbarStyle:style];
 		}
-		[window setToolbarStyle:style];
-	}
-#endif
-
+	#endif
+	});
 }
 // Set Hide Toolbar Separator
 void windowSetHideToolbarSeparator(void* nsWindow, bool hideSeparator) {
-	NSToolbar* toolbar = [nativeWindow(nsWindow) toolbar];
-	if( toolbar == nil ) {
-		return;
-	}
-	[toolbar setShowsBaselineSeparator:!hideSeparator];
+	wailsRunOnMain(^{
+		NSToolbar* toolbar = [nativeWindow(nsWindow) toolbar];
+		if( toolbar == nil ) {
+			return;
+		}
+		[toolbar setShowsBaselineSeparator:!hideSeparator];
+	});
 }
 
 // Configure the toolbar auto-hide feature
 void windowSetShowToolbarWhenFullscreen(void* window, bool setting) {
-	NSWindow* nsWindow = nativeWindow(window);
-	// Get delegate
-	WebviewWindowDelegate* delegate = (WebviewWindowDelegate*)[nsWindow delegate];
-	// Set height
-	delegate.showToolbarWhenFullscreen = setting;
+	wailsRunOnMain(^{
+		NSWindow* nsWindow = nativeWindow(window);
+		// Get delegate
+		WebviewWindowDelegate* delegate = (WebviewWindowDelegate*)[nsWindow delegate];
+		// Set height
+		delegate.showToolbarWhenFullscreen = setting;
+	});
 }
 
 // Set Window appearance type
 void windowSetAppearanceTypeByName(void* nsWindow, const char *appearanceName) {
-	// set window appearance type by name
-	// Convert appearance name to NSString
-	NSString* appearanceNameString = [NSString stringWithUTF8String:appearanceName];
-	// Set appearance
-	[nativeWindow(nsWindow) setAppearance:[NSAppearance appearanceNamed:appearanceNameString]];
+	wailsRunOnMain(^{
+		// set window appearance type by name
+		// Convert appearance name to NSString
+		NSString* appearanceNameString = [NSString stringWithUTF8String:appearanceName];
+		// Set appearance
+		[nativeWindow(nsWindow) setAppearance:[NSAppearance appearanceNamed:appearanceNameString]];
 
-	free((void*)appearanceName);
+		free((void*)appearanceName);
+	});
 }
 
 // Center window on current monitor
 void windowCenter(void* nsWindow) {
-    NSWindow* window = nativeWindow(nsWindow);
-    NSScreen* screen = [window screen];
-    if (screen == NULL) {
-        screen = [NSScreen mainScreen];
-    }
+    wailsRunOnMain(^{
+        NSWindow* window = nativeWindow(nsWindow);
+        NSScreen* screen = [window screen];
+        if (screen == NULL) {
+            screen = [NSScreen mainScreen];
+        }
 
-    NSRect screenFrame = [screen visibleFrame];
-    NSRect windowFrame = [window frame];
+        NSRect screenFrame = [screen visibleFrame];
+        NSRect windowFrame = [window frame];
 
-    CGFloat x = screenFrame.origin.x + (screenFrame.size.width - windowFrame.size.width) / 2;
-    CGFloat y = screenFrame.origin.y + (screenFrame.size.height - windowFrame.size.height) / 2;
+        CGFloat x = screenFrame.origin.x + (screenFrame.size.width - windowFrame.size.width) / 2;
+        CGFloat y = screenFrame.origin.y + (screenFrame.size.height - windowFrame.size.height) / 2;
 
-    [window setFrame:NSMakeRect(x, y, windowFrame.size.width, windowFrame.size.height) display:YES];
+        [window setFrame:NSMakeRect(x, y, windowFrame.size.width, windowFrame.size.height) display:YES];
+    });
 }
 
 
 // Get the current size of the window
 void windowGetSize(void* nsWindow, int* width, int* height) {
-	NSRect frame = [nativeWindow(nsWindow) frame];
-	*width = frame.size.width;
-	*height = frame.size.height;
+	wailsRunOnMain(^{
+		NSRect frame = [nativeWindow(nsWindow) frame];
+		*width = frame.size.width;
+		*height = frame.size.height;
+	});
 }
 
 // Get window width
 int windowGetWidth(void* nsWindow) {
-	return [nativeWindow(nsWindow) frame].size.width;
+	return WAILS_ON_MAIN_RESULT(int, ^int (void) {
+		return [nativeWindow(nsWindow) frame].size.width;
+	});
 }
 
 // Get window height
 int windowGetHeight(void* nsWindow) {
-	return [nativeWindow(nsWindow) frame].size.height;
+	return WAILS_ON_MAIN_RESULT(int, ^int (void) {
+		return [nativeWindow(nsWindow) frame].size.height;
+	});
 }
 
 // Get the window position relative to its screen's NSScreen frame origin:
@@ -740,16 +869,18 @@ int windowGetHeight(void* nsWindow) {
 // so each axis was wrong only on screens whose corresponding NSScreen
 // frame.origin component is non-zero (issue #5408).
 void windowGetRelativePosition(void* nsWindow, int* x, int* y) {
-	NSWindow* window = nativeWindow(nsWindow);
-	NSRect frame = [window frame];
+	wailsRunOnMain(^{
+		NSWindow* window = nativeWindow(nsWindow);
+		NSRect frame = [window frame];
 
-	NSScreen* screen = [window screen];
-	if( screen == NULL ) {
-		screen = [NSScreen mainScreen];
-	}
-	NSRect screenFrame = [screen frame];
-	*x = frame.origin.x - screenFrame.origin.x;
-	*y = (screenFrame.origin.y + screenFrame.size.height) - frame.origin.y - frame.size.height;
+		NSScreen* screen = [window screen];
+		if( screen == NULL ) {
+			screen = [NSScreen mainScreen];
+		}
+		NSRect screenFrame = [screen frame];
+		*x = frame.origin.x - screenFrame.origin.x;
+		*y = (screenFrame.origin.y + screenFrame.size.height) - frame.origin.y - frame.size.height;
+	});
 }
 
 // Get absolute window position in the canonical Wails coordinate space:
@@ -758,142 +889,170 @@ void windowGetRelativePosition(void* nsWindow, int* x, int* y) {
 // public APIs of Electron and the web. Screens above the primary have
 // negative Y.
 void windowGetPosition(void* nsWindow, int* x, int* y) {
-	NSWindow* window = nativeWindow(nsWindow);
-	NSScreen* primaryScreen = [[NSScreen screens] firstObject];
-	if (primaryScreen == NULL) {
-		primaryScreen = [NSScreen mainScreen];
-	}
-	CGFloat primaryHeight = [primaryScreen frame].size.height;
-	NSRect frame = [window frame];
-	*x = frame.origin.x;
-	*y = primaryHeight - frame.origin.y - frame.size.height;
+	wailsRunOnMain(^{
+		NSWindow* window = nativeWindow(nsWindow);
+		NSScreen* primaryScreen = [[NSScreen screens] firstObject];
+		if (primaryScreen == NULL) {
+			primaryScreen = [NSScreen mainScreen];
+		}
+		CGFloat primaryHeight = [primaryScreen frame].size.height;
+		NSRect frame = [window frame];
+		*x = frame.origin.x;
+		*y = primaryHeight - frame.origin.y - frame.size.height;
+	});
 }
 
 void windowSetPosition(void* nsWindow, int x, int y) {
-	NSWindow* window = nativeWindow(nsWindow);
-	NSScreen* primaryScreen = [[NSScreen screens] firstObject];
-	if (primaryScreen == NULL) {
-		primaryScreen = [NSScreen mainScreen];
-	}
-	CGFloat primaryHeight = [primaryScreen frame].size.height;
-	NSRect frame = [window frame];
-	frame.origin.x = x;
-	frame.origin.y = primaryHeight - frame.size.height - y;
-	[window setFrame:frame display:YES];
+	wailsRunOnMain(^{
+		NSWindow* window = nativeWindow(nsWindow);
+		NSScreen* primaryScreen = [[NSScreen screens] firstObject];
+		if (primaryScreen == NULL) {
+			primaryScreen = [NSScreen mainScreen];
+		}
+		CGFloat primaryHeight = [primaryScreen frame].size.height;
+		NSRect frame = [window frame];
+		frame.origin.x = x;
+		frame.origin.y = primaryHeight - frame.size.height - y;
+		[window setFrame:frame display:YES];
+	});
 }
 
 
 // Center window on a specific screen identified by display ID
 void windowCenterOnScreen(void* nsWindow, const char* screenID) {
-	NSWindow* window = nativeWindow(nsWindow);
-	NSString* targetID = [NSString stringWithUTF8String:screenID];
-	NSScreen* targetScreen = nil;
-	for (NSScreen* s in [NSScreen screens]) {
-		NSDictionary* desc = [s deviceDescription];
-		NSNumber* num = [desc objectForKey:@"NSScreenNumber"];
-		CGDirectDisplayID displayID = [num unsignedIntValue];
-		NSString* sid = [NSString stringWithFormat:@"%u", displayID];
-		if ([sid isEqualToString:targetID]) {
-			targetScreen = s;
-			break;
+	wailsRunOnMain(^{
+		NSWindow* window = nativeWindow(nsWindow);
+		NSString* targetID = [NSString stringWithUTF8String:screenID];
+		NSScreen* targetScreen = nil;
+		for (NSScreen* s in [NSScreen screens]) {
+			NSDictionary* desc = [s deviceDescription];
+			NSNumber* num = [desc objectForKey:@"NSScreenNumber"];
+			CGDirectDisplayID displayID = [num unsignedIntValue];
+			NSString* sid = [NSString stringWithFormat:@"%u", displayID];
+			if ([sid isEqualToString:targetID]) {
+				targetScreen = s;
+				break;
+			}
 		}
-	}
-	if (targetScreen == nil) {
-		targetScreen = [NSScreen mainScreen];
-	}
-	NSRect visibleFrame = [targetScreen visibleFrame];
-	NSRect windowFrame = [window frame];
-	CGFloat x = visibleFrame.origin.x + (visibleFrame.size.width - windowFrame.size.width) / 2;
-	CGFloat y = visibleFrame.origin.y + (visibleFrame.size.height - windowFrame.size.height) / 2;
-	[window setFrameOrigin:NSMakePoint(x, y)];
+		if (targetScreen == nil) {
+			targetScreen = [NSScreen mainScreen];
+		}
+		NSRect visibleFrame = [targetScreen visibleFrame];
+		NSRect windowFrame = [window frame];
+		CGFloat x = visibleFrame.origin.x + (visibleFrame.size.width - windowFrame.size.width) / 2;
+		CGFloat y = visibleFrame.origin.y + (visibleFrame.size.height - windowFrame.size.height) / 2;
+		[window setFrameOrigin:NSMakePoint(x, y)];
+	});
 }
 
 // Position window relative to a specific screen's visible frame
 void windowSetPositionOnScreen(void* nsWindow, int x, int y, const char* screenID) {
-	NSWindow* window = nativeWindow(nsWindow);
-	NSString* targetID = [NSString stringWithUTF8String:screenID];
-	NSScreen* targetScreen = nil;
-	for (NSScreen* s in [NSScreen screens]) {
-		NSDictionary* desc = [s deviceDescription];
-		NSNumber* num = [desc objectForKey:@"NSScreenNumber"];
-		CGDirectDisplayID displayID = [num unsignedIntValue];
-		NSString* sid = [NSString stringWithFormat:@"%u", displayID];
-		if ([sid isEqualToString:targetID]) {
-			targetScreen = s;
-			break;
+	wailsRunOnMain(^{
+		NSWindow* window = nativeWindow(nsWindow);
+		NSString* targetID = [NSString stringWithUTF8String:screenID];
+		NSScreen* targetScreen = nil;
+		for (NSScreen* s in [NSScreen screens]) {
+			NSDictionary* desc = [s deviceDescription];
+			NSNumber* num = [desc objectForKey:@"NSScreenNumber"];
+			CGDirectDisplayID displayID = [num unsignedIntValue];
+			NSString* sid = [NSString stringWithFormat:@"%u", displayID];
+			if ([sid isEqualToString:targetID]) {
+				targetScreen = s;
+				break;
+			}
 		}
-	}
-	if (targetScreen == nil) {
-		targetScreen = [NSScreen mainScreen];
-	}
-	CGFloat scale = [targetScreen backingScaleFactor];
-	NSRect visibleFrame = [targetScreen visibleFrame];
-	NSRect windowFrame = [window frame];
-	// x,y are in DIP top-origin coords relative to the screen's work area
-	CGFloat newX = visibleFrame.origin.x + (x / scale);
-	CGFloat newY = visibleFrame.origin.y + visibleFrame.size.height - windowFrame.size.height - (y / scale);
-	[window setFrameOrigin:NSMakePoint(newX, newY)];
+		if (targetScreen == nil) {
+			targetScreen = [NSScreen mainScreen];
+		}
+		CGFloat scale = [targetScreen backingScaleFactor];
+		NSRect visibleFrame = [targetScreen visibleFrame];
+		NSRect windowFrame = [window frame];
+		// x,y are in DIP top-origin coords relative to the screen's work area
+		CGFloat newX = visibleFrame.origin.x + (x / scale);
+		CGFloat newY = visibleFrame.origin.y + visibleFrame.size.height - windowFrame.size.height - (y / scale);
+		[window setFrameOrigin:NSMakePoint(newX, newY)];
+	});
 }
 
 // Destroy window
 void windowDestroy(void* nsWindow) {
-	[nativeWindow(nsWindow) close];
+	wailsRunOnMain(^{
+		[nativeWindow(nsWindow) close];
+	});
 }
 
 // Remove drop shadow from window
 void windowSetShadow(void* nsWindow, bool hasShadow) {
-	[nativeWindow(nsWindow) setHasShadow:hasShadow];
+	wailsRunOnMain(^{
+		[nativeWindow(nsWindow) setHasShadow:hasShadow];
+	});
 }
 
 // Set whether the Escape key should be prevented from exiting fullscreen
 void windowSetDisableEscapeExitsFullscreen(void* nsWindow, bool disable) {
-	[webviewHost(nsWindow) setDisableEscapeExitsFullscreen:disable];
+	wailsRunOnMain(^{
+		[webviewHost(nsWindow) setDisableEscapeExitsFullscreen:disable];
+	});
 }
 
 
 
 // windowClose closes the current window
 static void windowClose(void *window) {
-	[nativeWindow(window) close];
+	wailsRunOnMain(^{
+		[nativeWindow(window) close];
+	});
 }
 
 // windowZoom
 static void windowZoom(void *window) {
-	[nativeWindow(window) zoom:nil];
+	wailsRunOnMain(^{
+		[nativeWindow(window) zoom:nil];
+	});
 }
 
 // webviewRenderHTML renders the given HTML
 static void windowRenderHTML(void *window, const char *html) {
-	NSWindow<WailsWebviewWindow>* nsWindow = webviewHost(window);
-	// get window delegate
-	WebviewWindowDelegate* windowDelegate = (WebviewWindowDelegate*)[nsWindow delegate];
-	// render html
-	[nsWindow.webView loadHTMLString:[NSString stringWithUTF8String:html] baseURL:nil];
+	wailsRunOnMain(^{
+		NSWindow<WailsWebviewWindow>* nsWindow = webviewHost(window);
+		// get window delegate
+		WebviewWindowDelegate* windowDelegate = (WebviewWindowDelegate*)[nsWindow delegate];
+		// render html
+		[nsWindow.webView loadHTMLString:[NSString stringWithUTF8String:html] baseURL:nil];
+	});
 }
 
 static void windowInjectCSS(void *window, const char *css) {
-	NSWindow<WailsWebviewWindow>* nsWindow = webviewHost(window);
-	// inject css
-	[nsWindow.webView evaluateJavaScript:[NSString stringWithFormat:@"(function() { var style = document.createElement('style'); style.appendChild(document.createTextNode('%@')); document.head.appendChild(style); })();", [NSString stringWithUTF8String:css]] completionHandler:nil];
-	free((void*)css);
+	wailsRunOnMain(^{
+		NSWindow<WailsWebviewWindow>* nsWindow = webviewHost(window);
+		// inject css
+		[nsWindow.webView evaluateJavaScript:[NSString stringWithFormat:@"(function() { var style = document.createElement('style'); style.appendChild(document.createTextNode('%@')); document.head.appendChild(style); })();", [NSString stringWithUTF8String:css]] completionHandler:nil];
+		free((void*)css);
+	});
 }
 
 static void windowMinimise(void *window) {
-	[nativeWindow(window) miniaturize:nil];
+	wailsRunOnMain(^{
+		[nativeWindow(window) miniaturize:nil];
+	});
 }
 
 // windowFlash requests user attention so the app's Dock icon bounces, drawing
 // the user back to a window that needs them. NSInformationalRequest bounces the
 // icon once; the request completes on its own, so disabling is a no-op.
 static void windowFlash(void *window, bool enabled) {
-	if (enabled) {
-		[NSApp requestUserAttention:NSInformationalRequest];
-	}
+	wailsRunOnMain(^{
+		if (enabled) {
+			[NSApp requestUserAttention:NSInformationalRequest];
+		}
+	});
 }
 
 // zoom maximizes the window to the screen dimensions
 static void windowMaximise(void *window) {
-	[nativeWindow(window) zoom:nil];
+	wailsRunOnMain(^{
+		[nativeWindow(window) zoom:nil];
+	});
 }
 
 static bool isFullScreen(void *window) {
@@ -903,8 +1062,10 @@ static bool isFullScreen(void *window) {
 }
 
 static bool isVisible(void *window) {
-	NSWindow* nsWindow = nativeWindow(window);
-    return (nsWindow.occlusionState & NSWindowOcclusionStateVisible) == NSWindowOcclusionStateVisible;
+	return WAILS_ON_MAIN_RESULT(bool, ^bool (void) {
+		NSWindow* nsWindow = nativeWindow(window);
+	    return (nsWindow.occlusionState & NSWindowOcclusionStateVisible) == NSWindowOcclusionStateVisible;
+	});
 }
 
 // windowSetFullScreen
@@ -920,19 +1081,25 @@ static void windowSetFullScreen(void *window, bool fullscreen) {
 
 // windowUnminimise
 static void windowUnminimise(void *window) {
-	[nativeWindow(window) deminiaturize:nil];
+	wailsRunOnMain(^{
+		[nativeWindow(window) deminiaturize:nil];
+	});
 }
 
 // windowUnmaximise
 static void windowUnmaximise(void *window) {
-	[nativeWindow(window) zoom:nil];
+	wailsRunOnMain(^{
+		[nativeWindow(window) zoom:nil];
+	});
 }
 
 static void windowDisableSizeConstraints(void *window) {
-	NSWindow* nsWindow = nativeWindow(window);
-	// disable size constraints
-	[nsWindow setContentMinSize:CGSizeZero];
-	[nsWindow setContentMaxSize:CGSizeZero];
+	wailsRunOnMain(^{
+		NSWindow* nsWindow = nativeWindow(window);
+		// disable size constraints
+		[nsWindow setContentMinSize:CGSizeZero];
+		[nsWindow setContentMaxSize:CGSizeZero];
+	});
 }
 
 static bool isNonActivatingPanel(void *window) {
@@ -942,25 +1109,29 @@ static bool isNonActivatingPanel(void *window) {
 }
 
 static void windowShow(void *window, bool animated, double animationDuration) {
-	NSWindow* nsWindow = nativeWindow(window);
-	if ([nsWindow isKindOfClass:[WebviewNotchWindow class]]) {
-		[(WebviewNotchWindow*)nsWindow showAnimated:animated duration:animationDuration];
-		return;
-	}
-	if (isNonActivatingPanel(window)) {
-		[nsWindow orderFrontRegardless];
-		return;
-	}
-	[nsWindow makeKeyAndOrderFront:nil];
+	wailsRunOnMain(^{
+		NSWindow* nsWindow = nativeWindow(window);
+		if ([nsWindow isKindOfClass:[WebviewNotchWindow class]]) {
+			[(WebviewNotchWindow*)nsWindow showAnimated:animated duration:animationDuration];
+			return;
+		}
+		if (isNonActivatingPanel(window)) {
+			[nsWindow orderFrontRegardless];
+			return;
+		}
+		[nsWindow makeKeyAndOrderFront:nil];
+	});
 }
 
 static void windowHide(void *window, bool animated, double animationDuration) {
-	NSWindow* nsWindow = nativeWindow(window);
-	if ([nsWindow isKindOfClass:[WebviewNotchWindow class]]) {
-		[(WebviewNotchWindow*)nsWindow hideAnimated:animated duration:animationDuration];
-		return;
-	}
-	[nsWindow orderOut:nil];
+	wailsRunOnMain(^{
+		NSWindow* nsWindow = nativeWindow(window);
+		if ([nsWindow isKindOfClass:[WebviewNotchWindow class]]) {
+			[(WebviewNotchWindow*)nsWindow hideAnimated:animated duration:animationDuration];
+			return;
+		}
+		[nsWindow orderOut:nil];
+	});
 }
 
 // setButtonState sets the state of the given button
@@ -978,115 +1149,129 @@ static void setButtonState(void *button, int state) {
 
 // setMinimiseButtonState sets the minimise button state
 static void setMinimiseButtonState(void *window, int state) {
-	NSWindow* nsWindow = nativeWindow(window);
-	NSButton *minimiseButton = [nsWindow standardWindowButton:NSWindowMiniaturizeButton];
-	setButtonState(minimiseButton, state);
+	wailsRunOnMain(^{
+		NSWindow* nsWindow = nativeWindow(window);
+		NSButton *minimiseButton = [nsWindow standardWindowButton:NSWindowMiniaturizeButton];
+		setButtonState(minimiseButton, state);
+	});
 }
 
 // setMaximiseButtonState sets the maximise button state
 static void setMaximiseButtonState(void *window, int state) {
-	NSWindow* nsWindow = nativeWindow(window);
-	NSButton *maximiseButton = [nsWindow standardWindowButton:NSWindowZoomButton];
-	setButtonState(maximiseButton, state);
+	wailsRunOnMain(^{
+		NSWindow* nsWindow = nativeWindow(window);
+		NSButton *maximiseButton = [nsWindow standardWindowButton:NSWindowZoomButton];
+		setButtonState(maximiseButton, state);
+	});
 }
 
 // setCloseButtonState sets the close button state
 static void setCloseButtonState(void *window, int state) {
-	NSWindow* nsWindow = nativeWindow(window);
-	NSButton *closeButton = [nsWindow standardWindowButton:NSWindowCloseButton];
-	setButtonState(closeButton, state);
+	wailsRunOnMain(^{
+		NSWindow* nsWindow = nativeWindow(window);
+		NSButton *closeButton = [nsWindow standardWindowButton:NSWindowCloseButton];
+		setButtonState(closeButton, state);
+	});
 }
 
 // windowShowMenu opens an NSMenu at the given coordinates
 static void windowShowMenu(void *window, void *menu, int x, int y) {
-	NSMenu* nsMenu = (NSMenu*)menu;
-	WKWebView* webView = webviewHost(window).webView;
-	NSPoint point = NSMakePoint(x, y);
-	[nsMenu popUpMenuPositioningItem:nil atLocation:point inView:webView];
+	wailsRunOnMain(^{
+		NSMenu* nsMenu = (NSMenu*)menu;
+		WKWebView* webView = webviewHost(window).webView;
+		NSPoint point = NSMakePoint(x, y);
+		[nsMenu popUpMenuPositioningItem:nil atLocation:point inView:webView];
+	});
 }
 
 // Make the given window frameless
 static void windowSetFrameless(void *window, bool frameless, bool squareCorners, double cornerRadius) {
-	NSWindow* nsWindow = nativeWindow(window);
-	NSWindowStyleMask panelStyles = [nsWindow styleMask] &
-		(NSWindowStyleMaskNonactivatingPanel | NSWindowStyleMaskUtilityWindow);
-	// set the window style to be frameless
-	if (frameless && (squareCorners || cornerRadius > 0)) {
-		[nsWindow setStyleMask:NSWindowStyleMaskBorderless | NSWindowStyleMaskResizable |
-			NSWindowStyleMaskMiniaturizable | panelStyles];
-		NSView* view = [nsWindow contentView];
-		if (!squareCorners) {
-			[view setWantsLayer:YES];
-			view.layer.cornerRadius = cornerRadius;
-			view.layer.masksToBounds = YES;
+	wailsRunOnMain(^{
+		NSWindow* nsWindow = nativeWindow(window);
+		NSWindowStyleMask panelStyles = [nsWindow styleMask] &
+			(NSWindowStyleMaskNonactivatingPanel | NSWindowStyleMaskUtilityWindow);
+		// set the window style to be frameless
+		if (frameless && (squareCorners || cornerRadius > 0)) {
+			[nsWindow setStyleMask:NSWindowStyleMaskBorderless | NSWindowStyleMaskResizable |
+				NSWindowStyleMaskMiniaturizable | panelStyles];
+			NSView* view = [nsWindow contentView];
+			if (!squareCorners) {
+				[view setWantsLayer:YES];
+				view.layer.cornerRadius = cornerRadius;
+				view.layer.masksToBounds = YES;
+			} else {
+				view.layer.cornerRadius = 0;
+				view.layer.masksToBounds = NO;
+			}
+		} else if (frameless) {
+			[nsWindow setStyleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
+				NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable |
+				NSWindowStyleMaskFullSizeContentView | panelStyles];
+			[nsWindow setTitlebarAppearsTransparent:YES];
+			[nsWindow setTitleVisibility:NSWindowTitleHidden];
 		} else {
+			[nsWindow setStyleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
+				NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable | panelStyles];
+			NSView* view = [nsWindow contentView];
 			view.layer.cornerRadius = 0;
 			view.layer.masksToBounds = NO;
 		}
-	} else if (frameless) {
-		[nsWindow setStyleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
-			NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable |
-			NSWindowStyleMaskFullSizeContentView | panelStyles];
-		[nsWindow setTitlebarAppearsTransparent:YES];
-		[nsWindow setTitleVisibility:NSWindowTitleHidden];
-	} else {
-		[nsWindow setStyleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
-			NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable | panelStyles];
-		NSView* view = [nsWindow contentView];
-		view.layer.cornerRadius = 0;
-		view.layer.masksToBounds = NO;
-	}
+	});
 }
 
 static void startDrag(void *window) {
-	NSWindow* nsWindow = nativeWindow(window);
-	if ([nsWindow isKindOfClass:[WebviewNotchWindow class]]) {
-		return;
-	}
+	wailsRunOnMain(^{
+		NSWindow* nsWindow = nativeWindow(window);
+		if ([nsWindow isKindOfClass:[WebviewNotchWindow class]]) {
+			return;
+		}
 
-	// Get delegate
-	WebviewWindowDelegate* windowDelegate = (WebviewWindowDelegate*)[nsWindow delegate];
+		// Get delegate
+		WebviewWindowDelegate* windowDelegate = (WebviewWindowDelegate*)[nsWindow delegate];
 
-	// start drag
-	[windowDelegate startDrag:nsWindow];
+		// start drag
+		[windowDelegate startDrag:nsWindow];
+	});
 }
 
 // Credit: https://stackoverflow.com/q/33319295
 static void windowPrint(void *window) {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 110000
-	// Check if macOS 11.0 or newer
-	if (@available(macOS 11.0, *)) {
-		NSWindow* nsWindow = nativeWindow(window);
-		NSWindow<WailsWebviewWindow>* host = webviewHost(window);
-		WebviewWindowDelegate* windowDelegate = (WebviewWindowDelegate*)[nsWindow delegate];
-		WKWebView* webView = host.webView;
+	wailsRunOnMain(^{
+	#if MAC_OS_X_VERSION_MAX_ALLOWED >= 110000
+		// Check if macOS 11.0 or newer
+		if (@available(macOS 11.0, *)) {
+			NSWindow* nsWindow = nativeWindow(window);
+			NSWindow<WailsWebviewWindow>* host = webviewHost(window);
+			WebviewWindowDelegate* windowDelegate = (WebviewWindowDelegate*)[nsWindow delegate];
+			WKWebView* webView = host.webView;
 
-		// TODO: Think about whether to expose this as config
-		NSPrintInfo *pInfo = [NSPrintInfo sharedPrintInfo];
-		pInfo.horizontalPagination = NSPrintingPaginationModeAutomatic;
-		pInfo.verticalPagination = NSPrintingPaginationModeAutomatic;
-		pInfo.verticallyCentered = YES;
-		pInfo.horizontallyCentered = YES;
-		pInfo.orientation = NSPaperOrientationLandscape;
-		pInfo.leftMargin = 30;
-		pInfo.rightMargin = 30;
-		pInfo.topMargin = 30;
-		pInfo.bottomMargin = 30;
+			// TODO: Think about whether to expose this as config
+			NSPrintInfo *pInfo = [NSPrintInfo sharedPrintInfo];
+			pInfo.horizontalPagination = NSPrintingPaginationModeAutomatic;
+			pInfo.verticalPagination = NSPrintingPaginationModeAutomatic;
+			pInfo.verticallyCentered = YES;
+			pInfo.horizontallyCentered = YES;
+			pInfo.orientation = NSPaperOrientationLandscape;
+			pInfo.leftMargin = 30;
+			pInfo.rightMargin = 30;
+			pInfo.topMargin = 30;
+			pInfo.bottomMargin = 30;
 
-		NSPrintOperation *po = [webView printOperationWithPrintInfo:pInfo];
-		po.showsPrintPanel = YES;
-		po.showsProgressPanel = YES;
+			NSPrintOperation *po = [webView printOperationWithPrintInfo:pInfo];
+			po.showsPrintPanel = YES;
+			po.showsProgressPanel = YES;
 
-		// Without the next line you get an exception. Also it seems to
-		// completely ignore the values in the rect. I tried changing them
-		// in both x and y direction to include content scrolled off screen.
-		// It had no effect whatsoever in either direction.
-		po.view.frame = webView.bounds;
+			// Without the next line you get an exception. Also it seems to
+			// completely ignore the values in the rect. I tried changing them
+			// in both x and y direction to include content scrolled off screen.
+			// It had no effect whatsoever in either direction.
+			po.view.frame = webView.bounds;
 
-		// [printOperation runOperation] DOES NOT WORK WITH WKWEBVIEW, use
-		[po runOperationModalForWindow:nsWindow delegate:windowDelegate didRunSelector:nil contextInfo:nil];
-	}
-#endif
+			// [printOperation runOperation] DOES NOT WORK WITH WKWEBVIEW, use
+			[po runOperationModalForWindow:nsWindow delegate:windowDelegate didRunSelector:nil contextInfo:nil];
+		}
+	#endif
+	});
 }
 
 void setWindowEnabled(void *window, bool enabled) {
@@ -1095,45 +1280,55 @@ void setWindowEnabled(void *window, bool enabled) {
 }
 
 void windowSetEnabled(void *window, bool enabled) {
-	// TODO: Implement
+	wailsRunOnMain(^{
+		// TODO: Implement
+	});
 }
 
 void windowFocus(void *window) {
-	NSWindow* nsWindow = nativeWindow(window);
-	if (isNonActivatingPanel(window)) {
-		[nsWindow orderFrontRegardless];
+	wailsRunOnMain(^{
+		NSWindow* nsWindow = nativeWindow(window);
+		if (isNonActivatingPanel(window)) {
+			[nsWindow orderFrontRegardless];
+			[nsWindow makeKeyWindow];
+			return;
+		}
+		// If the current application is not active, activate it
+		if (![[NSApplication sharedApplication] isActive]) {
+			[[NSApplication sharedApplication] activateIgnoringOtherApps:YES];
+		}
+		[nsWindow makeKeyAndOrderFront:nil];
 		[nsWindow makeKeyWindow];
-		return;
-	}
-	// If the current application is not active, activate it
-	if (![[NSApplication sharedApplication] isActive]) {
-		[[NSApplication sharedApplication] activateIgnoringOtherApps:YES];
-	}
-	[nsWindow makeKeyAndOrderFront:nil];
-	[nsWindow makeKeyWindow];
+	});
 }
 
 static bool isIgnoreMouseEvents(void *nsWindow) {
-    NSWindow *window = (__bridge NSWindow *)nsWindow;
-    return [window ignoresMouseEvents];
+    return WAILS_ON_MAIN_RESULT(bool, ^bool (void) {
+        NSWindow *window = (__bridge NSWindow *)nsWindow;
+        return [window ignoresMouseEvents];
+    });
 }
 
 static void setIgnoreMouseEvents(void *nsWindow, bool ignore) {
-    NSWindow *window = (__bridge NSWindow *)nsWindow;
-    [window setIgnoresMouseEvents:ignore];
+    wailsRunOnMain(^{
+        NSWindow *window = (__bridge NSWindow *)nsWindow;
+        [window setIgnoresMouseEvents:ignore];
+    });
 }
 
 static void setContentProtection(void *nsWindow, bool enabled) {
-    NSWindow *window = (__bridge NSWindow *)nsWindow;
-	if( ! [window respondsToSelector:@selector(setSharingType:)]) {
-		return;
-	}
+    wailsRunOnMain(^{
+        NSWindow *window = (__bridge NSWindow *)nsWindow;
+    	if( ! [window respondsToSelector:@selector(setSharingType:)]) {
+    		return;
+    	}
 
-	if( enabled ) {
-		[window setSharingType:NSWindowSharingNone];
-	} else {
-		[window setSharingType:NSWindowSharingReadOnly];
-	}
+    	if( enabled ) {
+    		[window setSharingType:NSWindowSharingNone];
+    	} else {
+    		[window setSharingType:NSWindowSharingReadOnly];
+    	}
+    });
 }
 
 */

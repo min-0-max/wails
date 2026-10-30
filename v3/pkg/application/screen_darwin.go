@@ -9,6 +9,7 @@ package application
 #import <CoreGraphics/CoreGraphics.h>
 #import <Cocoa/Cocoa.h>
 #import <AppKit/AppKit.h>
+#include "mainthread_darwin.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -141,33 +142,37 @@ Screen GetPrimaryScreen(){
 // would over-read the buffer (freeing garbage id/name pointers) or leak the
 // strdup'd strings in unvisited tail entries.
 Screen* getAllScreens(int* outCount) {
-	// The explicit pool releases the autoreleased objects created during
-	// enumeration as soon as it ends: without it they leak when this is
-	// called from a Go goroutine thread that has no ambient pool. Only the
-	// strdup'd strings in the returned structs survive the pool.
-	@autoreleasepool {
-		NSArray<NSScreen *> *screens = [NSScreen screens];
-		NSUInteger count = screens.count;
-		if (outCount != NULL) {
-			*outCount = (int)count;
+	return WAILS_ON_MAIN_RESULT(Screen*, ^Screen* (void) {
+		// The explicit pool releases the autoreleased objects created during
+		// enumeration as soon as it ends: without it they leak when this is
+		// called from a Go goroutine thread that has no ambient pool. Only the
+		// strdup'd strings in the returned structs survive the pool.
+		@autoreleasepool {
+			NSArray<NSScreen *> *screens = [NSScreen screens];
+			NSUInteger count = screens.count;
+			if (outCount != NULL) {
+				*outCount = (int)count;
+			}
+			// Reuse the snapshot above instead of re-enumerating [NSScreen screens];
+			// screens[0] is the primary screen (matches isPrimary = (i == 0) below).
+			CGFloat primaryHeight = count > 0 ? [[screens objectAtIndex:0] frame].size.height : 0;
+			Screen* returnScreens = malloc(sizeof(Screen) * count);
+			for (NSUInteger i = 0; i < count; i++) {
+				returnScreens[i] = processScreen([screens objectAtIndex:i], primaryHeight);
+				returnScreens[i].isPrimary = (i == 0);
+			}
+			return returnScreens;
 		}
-		// Reuse the snapshot above instead of re-enumerating [NSScreen screens];
-		// screens[0] is the primary screen (matches isPrimary = (i == 0) below).
-		CGFloat primaryHeight = count > 0 ? [[screens objectAtIndex:0] frame].size.height : 0;
-		Screen* returnScreens = malloc(sizeof(Screen) * count);
-		for (NSUInteger i = 0; i < count; i++) {
-			returnScreens[i] = processScreen([screens objectAtIndex:i], primaryHeight);
-			returnScreens[i].isPrimary = (i == 0);
-		}
-		return returnScreens;
-	}
+	});
 }
 
 Screen getScreenForWindow(void* window){
-	@autoreleasepool {
-		NSScreen* screen = ((NSWindow*)window).screen;
-		return processScreen(screen, primaryScreenHeight());
-	}
+	return WAILS_ON_MAIN_RESULT(Screen, ^Screen (void) {
+		@autoreleasepool {
+			NSScreen* screen = ((NSWindow*)window).screen;
+			return processScreen(screen, primaryScreenHeight());
+		}
+	});
 }
 
 // Get the screen for the system tray
@@ -187,8 +192,10 @@ Screen getScreenForSystemTray(void* nsStatusItem) {
 }
 
 void* getWindowForSystray(void* nsStatusItem) {
-	NSStatusItem *statusItem = (NSStatusItem *)nsStatusItem;
-	return statusItem.button.window;
+	return WAILS_ON_MAIN_RESULT(void*, ^void* (void) {
+		NSStatusItem *statusItem = (NSStatusItem *)nsStatusItem;
+		return statusItem.button.window;
+	});
 }
 
 
