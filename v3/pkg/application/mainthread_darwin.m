@@ -2,6 +2,7 @@
 
 #import <Foundation/Foundation.h>
 #include <pthread.h>
+#include <pthread/qos.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "mainthread_darwin.h"
@@ -89,6 +90,14 @@ bool wailsIsWorkerThread(void) {
 void wailsWorkerRun(void) {
 	if (pthread_main_np()) {
 		fprintf(stderr, "wails: the main-thread worker was started on the main thread\n");
+		abort();
+	}
+	// The main thread waits for this thread on a condition variable, which passes
+	// no priority, so this thread runs at the class of the main thread of an
+	// application.
+	int failure = pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+	if (failure != 0) {
+		fprintf(stderr, "wails: the main-thread worker could not set its quality of service: %d\n", failure);
 		abort();
 	}
 	wailsOnWorker = true;

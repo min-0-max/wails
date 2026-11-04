@@ -156,3 +156,21 @@ func TestNoTestOnlyHelpersInShippedFiles(t *testing.T) {
 		}
 	}
 }
+
+// TestWorkerRunsAtUserInteractiveQualityOfService covers the wait of the main
+// thread for the worker. That wait is a condition variable, which passes no
+// priority to the thread it waits for, and the main thread of an application
+// runs at this class, so a worker below it holds the main thread back while
+// other work of the system runs.
+func TestWorkerRunsAtUserInteractiveQualityOfService(t *testing.T) {
+	result := make(chan int, 1)
+	scheduleOnMainForTest(func() { result <- mainthreadharness.QualityOfServiceOfThisThread() })
+	select {
+	case class := <-result:
+		if class != mainthreadharness.QualityOfServiceUserInteractive {
+			t.Fatalf("worker quality of service class %#x, expected %#x", class, mainthreadharness.QualityOfServiceUserInteractive)
+		}
+	case <-time.After(deliveryBudget):
+		t.Fatal("the worker did not run the scheduled work")
+	}
+}
