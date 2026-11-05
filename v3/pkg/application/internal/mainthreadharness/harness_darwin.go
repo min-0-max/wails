@@ -46,6 +46,26 @@ static int wailsInitAppKit(void) {
 // worker that runs the Go code of main-thread steps.
 extern void wailsRunOnMain(void (^call)(void));
 
+// Writes the size of the content view of a window and of each of its subviews,
+// the content view first, and returns how many sizes it wrote.
+static int wailsContentSizes(void* nsWindow, double* sizes, int room) {
+	__block int count = 0;
+	wailsRunOnMain(^{
+		NSView* content = [(NSWindow*)nsWindow contentView];
+		NSMutableArray<NSView*>* views = [NSMutableArray arrayWithObject:content];
+		[views addObjectsFromArray:[content subviews]];
+		for (NSView* view in views) {
+			if (count == room) {
+				break;
+			}
+			sizes[2 * count] = view.frame.size.width;
+			sizes[2 * count + 1] = view.frame.size.height;
+			count++;
+		}
+	});
+	return count;
+}
+
 static void wailsRunNested(double seconds) {
 	wailsRunOnMain(^{
 		CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, false);
@@ -65,6 +85,24 @@ import (
 // loop. Once AppKit owns the draining it does not re-enter, which is the
 // behaviour a real application has.
 func InitAppKit() bool { return C.wailsInitAppKit() != 0 }
+
+// Size is the size of a view in points.
+type Size struct {
+	Width, Height float64
+}
+
+// ContentSizes returns the size of the content view of a window and of each of
+// its subviews, the content view first.
+func ContentSizes(nsWindow unsafe.Pointer) []Size {
+	const room = 8
+	var sizes [2 * room]C.double
+	count := int(C.wailsContentSizes(nsWindow, &sizes[0], room))
+	result := make([]Size, count)
+	for i := range result {
+		result[i] = Size{float64(sizes[2*i]), float64(sizes[2*i+1])}
+	}
+	return result
+}
 
 // Loop turns a run loop until it is stopped.
 type Loop struct {
