@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+	"unsafe"
 
 	"github.com/wailsapp/wails/v3/internal/assetserver"
 )
@@ -263,6 +264,10 @@ type MacOptions struct {
 	// opens, and an application launched in the background (for example with
 	// `open -g`) stays behind the frontmost application.
 	DisableActivationOnLaunch bool
+	// WindowShow, when set, does what Show does to a standard window, in place of
+	// making it key and ordering it front: the application decides where the window
+	// goes. It receives the NSWindow. A panel and a notch window keep their own show.
+	WindowShow func(window unsafe.Pointer)
 }
 
 /****** Windows Options *******/
