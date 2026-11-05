@@ -21,7 +21,7 @@ func TestMacOptionsWindowShowShowsAStandardWindow(t *testing.T) {
 		for range windowEvents {
 		}
 	}()
-	window := NewWindow(WebviewWindowOptions{Width: 400, Height: 300, Hidden: true, HTML: "<html></html>"})
+	window := NewWindow(WebviewWindowOptions{Width: 400, Height: 300, Hidden: true, EnableFileDrop: true, HTML: "<html></html>"})
 	window.Run()
 	contentOf(t, window)
 	window.Show()

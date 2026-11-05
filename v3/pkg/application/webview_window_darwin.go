@@ -1445,7 +1445,12 @@ func (w *macosWebviewWindow) getScreen() (*Screen, error) {
 
 func (w *macosWebviewWindow) show() {
 	animated, duration := w.notchAnimation()
-	C.windowShow(w.nsWindow, C.bool(animated), C.double(duration))
+	show := globalApplication.options.Mac.WindowShow
+	if show != nil && w.parent.notchWindow == nil && w.parent.options.Mac.WindowClass == MacWindowClassWindow {
+		show(w.nsWindow)
+	} else {
+		C.windowShow(w.nsWindow, C.bool(animated), C.double(duration))
+	}
 	w.setHasShadow(!w.parent.options.Mac.DisableShadow)
 }
 
