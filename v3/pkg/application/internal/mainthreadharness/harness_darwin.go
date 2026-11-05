@@ -66,6 +66,12 @@ static int wailsContentSizes(void* nsWindow, double* sizes, int room) {
 	return count;
 }
 
+static void wailsSetContentSize(void* nsWindow, double width, double height) {
+	wailsRunOnMain(^{
+		[(NSWindow*)nsWindow setContentSize:NSMakeSize(width, height)];
+	});
+}
+
 static void wailsRunNested(double seconds) {
 	wailsRunOnMain(^{
 		CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, false);
@@ -102,6 +108,12 @@ func ContentSizes(nsWindow unsafe.Pointer) []Size {
 		result[i] = Size{float64(sizes[2*i]), float64(sizes[2*i+1])}
 	}
 	return result
+}
+
+// SetContentSize gives the content view of a window a new size, as the size of
+// a window takes effect on its views.
+func SetContentSize(nsWindow unsafe.Pointer, size Size) {
+	C.wailsSetContentSize(nsWindow, C.double(size.Width), C.double(size.Height))
 }
 
 // Loop turns a run loop until it is stopped.
