@@ -49,6 +49,7 @@ func TestTheContentOfAWindowIsItsRequestedSize(t *testing.T) {
 		"frameless":    {Frameless: true},
 		"panel":        {Mac: MacWindow{WindowClass: MacWindowClassPanel}},
 		"inset bar":    {Mac: MacWindow{TitleBar: MacTitleBarHiddenInset}},
+		"hidden bar":   {Mac: MacWindow{TitleBar: MacTitleBarHidden}},
 		"translucent":  {Mac: MacWindow{Backdrop: MacBackdropTranslucent}},
 		"size limited": {MinWidth: 400, MinHeight: 300, MaxWidth: 1600, MaxHeight: 1200},
 	} {
@@ -63,6 +64,31 @@ func TestTheContentOfAWindowIsItsRequestedSize(t *testing.T) {
 				}
 			}
 			native := window.impl.(*macosWebviewWindow).nsWindow
+			// A window whose content runs under its bar has a frame of the size of its content, which is what a host of a full
+			// window page asks for.
+			if name == "hidden bar" {
+				var frame mainthreadharness.Size
+				InvokeSync(func() { frame = mainthreadharness.FrameSize(native) })
+				if frame.Width != width || frame.Height != height {
+					t.Errorf("the frame of the window is %vx%v, want %dx%d", frame.Width, frame.Height, width, height)
+				}
+				window.SetSize(900, 650)
+				var after []mainthreadharness.Size
+				for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+					InvokeSync(func() { frame, after = mainthreadharness.FrameSize(native), mainthreadharness.ContentSizes(native) })
+					if frame.Width == 900 && frame.Height == 650 {
+						break
+					}
+				}
+				if frame.Width != 900 || frame.Height != 650 {
+					t.Errorf("after a new size of 900x650 the frame is %vx%v", frame.Width, frame.Height)
+				}
+				for i, size := range after {
+					if size.Width != 900 || size.Height != 650 {
+						t.Errorf("after a new size of 900x650 view %d of the content is %vx%v", i, size.Width, size.Height)
+					}
+				}
+			}
 			want := mainthreadharness.Size{Width: 1000, Height: 700}
 			var resized []mainthreadharness.Size
 			InvokeSync(func() {

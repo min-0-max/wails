@@ -66,6 +66,15 @@ static int wailsContentSizes(void* nsWindow, double* sizes, int room) {
 	return count;
 }
 
+// Writes the size of the frame of a window.
+static void wailsFrameSize(void* nsWindow, double* width, double* height) {
+	wailsRunOnMain(^{
+		NSSize size = [(NSWindow*)nsWindow frame].size;
+		*width = size.width;
+		*height = size.height;
+	});
+}
+
 static void wailsSetContentSize(void* nsWindow, double width, double height) {
 	wailsRunOnMain(^{
 		[(NSWindow*)nsWindow setContentSize:NSMakeSize(width, height)];
@@ -108,6 +117,13 @@ func ContentSizes(nsWindow unsafe.Pointer) []Size {
 		result[i] = Size{float64(sizes[2*i]), float64(sizes[2*i+1])}
 	}
 	return result
+}
+
+// FrameSize returns the size of the frame of a window.
+func FrameSize(nsWindow unsafe.Pointer) Size {
+	var width, height C.double
+	C.wailsFrameSize(nsWindow, &width, &height)
+	return Size{float64(width), float64(height)}
 }
 
 // SetContentSize gives the content view of a window a new size, as the size of
