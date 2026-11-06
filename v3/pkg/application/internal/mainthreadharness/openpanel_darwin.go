@@ -40,9 +40,12 @@ static char *wailsProbeOpenPanelFilter(char **extensions, int extensionCount, ch
 		types = strdup([[identifiers componentsJoinedByString:@"\n"] UTF8String]);
 
 		// allowedFileTypes is the only public view of a restriction made with
-		// file types that have no content type: allowedContentTypes reports
-		// such a restriction as an empty list, the same as no restriction.
-		// nil is the only value that allows every file.
+		// file types that have no content type. A new panel reports no
+		// content types and nil file types. After setAllowedFileTypes: with
+		// tar.gz it reports no content types and an empty list of file types,
+		// so allowedContentTypes cannot tell the two apart, and the delegate
+		// decides on file names alone, whatever the panel restricts. nil is
+		// the only value that allows every file.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 		*restricted = panel.allowedFileTypes != nil;
