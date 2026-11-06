@@ -9,16 +9,6 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// IUnknownFromPointer cast a generic pointer into a IUnknownImpl pointer
-func IUnknownFromPointer(ref unsafe.Pointer) *IUnknownImpl {
-	return (*IUnknownImpl)(ref)
-}
-
-// IUnknownFromPointer cast native pointer into a IUnknownImpl pointer
-func IUnknownFromUintptr(ref uintptr) *IUnknownImpl {
-	return IUnknownFromPointer(unsafe.Pointer(ref))
-}
-
 type IUnknownVtbl struct {
 	queryInterface uintptr
 	addRef         uintptr
