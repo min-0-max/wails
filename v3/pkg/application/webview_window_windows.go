@@ -354,8 +354,8 @@ func (w *windowsWebviewWindow) attachModal(modalWindow *WebviewWindow) {
 	w32.BringWindowToTop(modalHWND)
 }
 
-func (w *windowsWebviewWindow) nativeWindow() unsafe.Pointer {
-	return unsafe.Pointer(w.hwnd)
+func (w *windowsWebviewWindow) nativeWindow() NativeHandle {
+	return w.hwnd
 }
 
 func (w *windowsWebviewWindow) setTitle(title string) {

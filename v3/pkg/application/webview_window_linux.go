@@ -462,7 +462,7 @@ func (w *linuxWebviewWindow) run() {
 	}
 }
 
-func (w *linuxWebviewWindow) nativeWindow() unsafe.Pointer {
+func (w *linuxWebviewWindow) nativeWindow() NativeHandle {
 	return unsafe.Pointer(w.window)
 }
 

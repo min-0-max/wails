@@ -100,11 +100,10 @@ func (w *windowsDock) SetBadge(label string) error {
 			return nil
 		}
 
-		nativeWindow := window.NativeWindow()
-		if nativeWindow == nil {
+		hwnd := window.NativeWindow()
+		if hwnd == 0 {
 			return errors.New("window native handle unavailable")
 		}
-		hwnd := uintptr(nativeWindow)
 
 		w.createBadge()
 
@@ -145,11 +144,10 @@ func (w *windowsDock) SetCustomBadge(label string, options BadgeOptions) error {
 			return nil
 		}
 
-		nativeWindow := window.NativeWindow()
-		if nativeWindow == nil {
+		hwnd := window.NativeWindow()
+		if hwnd == 0 {
 			return errors.New("window native handle unavailable")
 		}
-		hwnd := uintptr(nativeWindow)
 
 		const badgeSize = 32
 
@@ -207,11 +205,10 @@ func (w *windowsDock) RemoveBadge() error {
 			return nil
 		}
 
-		nativeWindow := window.NativeWindow()
-		if nativeWindow == nil {
+		hwnd := window.NativeWindow()
+		if hwnd == 0 {
 			return errors.New("window native handle unavailable")
 		}
-		hwnd := uintptr(nativeWindow)
 
 		w.badge = nil
 		return w.taskbar.SetOverlayIcon(hwnd, 0, nil)

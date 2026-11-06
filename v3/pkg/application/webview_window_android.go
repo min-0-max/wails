@@ -297,7 +297,7 @@ func (w *androidWebviewWindow) isMenuBarHidden() bool {
 	return true // Android doesn't have menu bar
 }
 
-func (w *androidWebviewWindow) nativeWindow() unsafe.Pointer {
+func (w *androidWebviewWindow) nativeWindow() NativeHandle {
 	return nil
 }
 

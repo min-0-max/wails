@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"syscall"
 	"time"
-	"unsafe"
 )
 
 // serverApp implements platformApp for server mode.
@@ -530,7 +529,7 @@ func (w *serverWebviewWindow) getScreen() (*Screen, error) {
 }
 func (w *serverWebviewWindow) setFrameless(frameless bool)                       {}
 func (w *serverWebviewWindow) openContextMenu(menu *Menu, data *ContextMenuData) {}
-func (w *serverWebviewWindow) nativeWindow() unsafe.Pointer                      { return nil }
+func (w *serverWebviewWindow) nativeWindow() NativeHandle                        { return noNativeHandle }
 func (w *serverWebviewWindow) startDrag() error {
 	return errors.New("drag not available in server mode")
 }
