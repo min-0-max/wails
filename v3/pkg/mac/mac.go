@@ -4,7 +4,7 @@
 package mac
 
 /*
-#cgo CFLAGS: -x objective-c
+#cgo CFLAGS: -mmacosx-version-min=12.0 -x objective-c
 #cgo LDFLAGS: -framework Foundation -framework ServiceManagement
 
 #import <Foundation/Foundation.h>

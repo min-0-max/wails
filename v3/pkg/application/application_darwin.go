@@ -4,8 +4,8 @@ package application
 
 /*
 
-#cgo CFLAGS: -mmacosx-version-min=10.13 -x objective-c
-#cgo LDFLAGS: -framework Cocoa -mmacosx-version-min=10.13
+#cgo CFLAGS: -mmacosx-version-min=12.0 -x objective-c
+#cgo LDFLAGS: -framework Cocoa
 
 #include "application_darwin.h"
 #include "application_darwin_delegate.h"

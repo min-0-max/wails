@@ -3,8 +3,8 @@
 package events
 
 /*
-#cgo CFLAGS:  -x objective-c
-#cgo LDFLAGS: -framework Cocoa -mmacosx-version-min=10.13
+#cgo CFLAGS: -mmacosx-version-min=12.0 -x objective-c
+#cgo LDFLAGS: -framework Cocoa
 
 #include "events_darwin.h"
 #include <stdlib.h>

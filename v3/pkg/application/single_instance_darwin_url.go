@@ -3,8 +3,8 @@
 package application
 
 /*
-#cgo CFLAGS: -mmacosx-version-min=10.13 -x objective-c -fblocks
-#cgo LDFLAGS: -mmacosx-version-min=10.13 -framework Foundation -framework Cocoa
+#cgo CFLAGS: -mmacosx-version-min=12.0 -x objective-c -fblocks
+#cgo LDFLAGS: -framework Foundation -framework Cocoa
 
 #include <stdlib.h>
 #import <Foundation/Foundation.h>

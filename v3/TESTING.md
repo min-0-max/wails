@@ -125,8 +125,8 @@ The system builds all 43 Wails v3 examples:
 
 **Environment Variables:**
 ```bash
-CGO_LDFLAGS="-framework UniformTypeIdentifiers -mmacosx-version-min=10.13"
-CGO_CFLAGS="-mmacosx-version-min=10.13"
+CGO_LDFLAGS="-framework UniformTypeIdentifiers -mmacosx-version-min=12.0"
+CGO_CFLAGS="-mmacosx-version-min=12.0"
 ```
 
 ### Windows (Cross-compilation)

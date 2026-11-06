@@ -11,9 +11,9 @@ tasks:
     cmds:
       - go build -gcflags=all="-N -l" -o bin/{{.APP_NAME}}
     env:
-      CGO_CFLAGS: "-mmacosx-version-min=10.13"
-      CGO_LDFLAGS: "-mmacosx-version-min=10.13"
-      MACOSX_DEPLOYMENT_TARGET: "10.13"
+      CGO_CFLAGS: "-mmacosx-version-min=12.0"
+      CGO_LDFLAGS: "-mmacosx-version-min=12.0"
+      MACOSX_DEPLOYMENT_TARGET: "12.0"
 
   package:
     summary: Packages a production build of the application into a `.app` or `.exe` bundle
@@ -35,9 +35,9 @@ tasks:
     cmds:
       - GOOS=darwin GOARCH={{.GOARCH}} go build -tags production -ldflags="-w -s" -o build/bin/{{.APP_NAME}}
     env:
-      CGO_CFLAGS: "-mmacosx-version-min=10.13"
-      CGO_LDFLAGS: "-mmacosx-version-min=10.13"
-      MACOSX_DEPLOYMENT_TARGET: "10.13"
+      CGO_CFLAGS: "-mmacosx-version-min=12.0"
+      CGO_LDFLAGS: "-mmacosx-version-min=12.0"
+      MACOSX_DEPLOYMENT_TARGET: "12.0"
       GOARCH: '{{.GOARCH}}'
 
   generate:app_bundle:

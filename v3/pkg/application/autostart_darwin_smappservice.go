@@ -3,7 +3,7 @@
 package application
 
 /*
-#cgo CFLAGS: -mmacosx-version-min=10.15 -x objective-c -Wno-unguarded-availability-new
+#cgo CFLAGS: -mmacosx-version-min=12.0 -x objective-c -Wno-unguarded-availability-new
 #cgo LDFLAGS: -framework Foundation -framework ServiceManagement
 
 #include <stdlib.h> // free

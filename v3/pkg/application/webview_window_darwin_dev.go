@@ -3,7 +3,7 @@
 package application
 
 /*
-#cgo CFLAGS: -mmacosx-version-min=10.13 -x objective-c -DWAILS_MAC_DEVTOOLS
+#cgo CFLAGS: -mmacosx-version-min=12.0 -x objective-c -DWAILS_MAC_DEVTOOLS
 #cgo LDFLAGS: -framework Cocoa -framework WebKit
 
 #include "mainthread_darwin.h"

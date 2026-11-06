@@ -3,7 +3,7 @@
 package application
 
 /*
-#cgo CFLAGS: -mmacosx-version-min=10.13
+#cgo CFLAGS: -mmacosx-version-min=12.0
 #cgo LDFLAGS: -framework Carbon
 
 #include "mainthread_darwin.h"

@@ -3,6 +3,8 @@
 package main
 
 /*
+#cgo CFLAGS: -mmacosx-version-min=12.0
+
 #include <mach/mach.h>
 #include <mach/mach_host.h>
 #include <mach/processor_info.h>

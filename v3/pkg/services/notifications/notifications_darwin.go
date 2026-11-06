@@ -3,7 +3,7 @@
 package notifications
 
 /*
-#cgo CFLAGS:-x objective-c
+#cgo CFLAGS: -mmacosx-version-min=12.0 -x objective-c
 #cgo LDFLAGS: -framework Foundation -framework Cocoa
 
 #if __MAC_OS_X_VERSION_MAX_ALLOWED >= 110000

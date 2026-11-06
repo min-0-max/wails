@@ -3,6 +3,8 @@
 package main
 
 /*
+#cgo CFLAGS: -mmacosx-version-min=12.0
+
 #include <libproc.h>
 #include <sys/proc_info.h>
 #include <sys/resource.h>
