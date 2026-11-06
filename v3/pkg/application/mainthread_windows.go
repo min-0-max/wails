@@ -5,7 +5,6 @@ package application
 import (
 	"runtime"
 	"sort"
-	"unsafe"
 
 	"github.com/wailsapp/wails/v3/pkg/w32"
 )
@@ -56,12 +55,10 @@ func (m *windowsApp) runMainLoop() int {
 		panic("invokeRequired for runMainLoop, the mainloop must be running on the same OSThread as the mainThreadWindow has been created on")
 	}
 
-	msg := (*w32.MSG)(unsafe.Pointer(w32.GlobalAlloc(0, uint32(unsafe.Sizeof(w32.MSG{})))))
-	defer w32.GlobalFree(w32.HGLOBAL(unsafe.Pointer(msg)))
-
-	for w32.GetMessage(msg, 0, 0, 0) != 0 {
-		w32.TranslateMessage(msg)
-		w32.DispatchMessage(msg)
+	var msg w32.MSG
+	for w32.GetMessage(&msg, 0, 0, 0) != 0 {
+		w32.TranslateMessage(&msg)
+		w32.DispatchMessage(&msg)
 	}
 
 	return int(msg.WParam)
