@@ -3,6 +3,7 @@
 package w32
 
 import (
+	"github.com/wailsapp/wails/v3/internal/osmem"
 	"golang.org/x/sys/windows"
 	"syscall"
 	"unsafe"
@@ -154,7 +155,7 @@ func (s STGMEDIUM) FileName() string {
 	if s.Tymed != TYMED_FILE {
 		return ""
 	}
-	return windows.UTF16PtrToString((*uint16)(unsafe.Pointer(s.Union)))
+	return osmem.UTF16String(s.Union)
 }
 
 func (s STGMEDIUM) Release() {

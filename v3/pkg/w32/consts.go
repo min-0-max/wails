@@ -4,7 +4,7 @@ package w32
 
 import (
 	"fmt"
-	"golang.org/x/sys/windows"
+	"github.com/wailsapp/wails/v3/internal/osmem"
 	"golang.org/x/sys/windows/registry"
 	"strconv"
 	"syscall"
@@ -56,7 +56,7 @@ func GetBranding() string {
 	ret, _, _ := brandingFormatString.Call(
 		uintptr(unsafe.Pointer(windowsLong)),
 	)
-	return windows.UTF16PtrToString((*uint16)(unsafe.Pointer(ret)))
+	return osmem.UTF16String(ret)
 }
 
 func GetWindowsVersionInfo() (*WindowsVersionInfo, error) {
