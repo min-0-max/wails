@@ -15,7 +15,7 @@ func TestMacOptionsWindowShowShowsAStandardWindow(t *testing.T) {
 		t.Fatal("AppKit is not available")
 	}
 	var shown []unsafe.Pointer
-	app := New(Options{Mac: MacOptions{WindowShow: func(window unsafe.Pointer) { shown = append(shown, window) }}})
+	app := NewTestApp(t, Options{Mac: MacOptions{WindowShow: func(window unsafe.Pointer) { shown = append(shown, window) }}})
 	app.impl = newPlatformApp(app)
 	go func() {
 		for range windowEvents {

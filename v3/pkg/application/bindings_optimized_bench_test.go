@@ -158,7 +158,7 @@ func (b *BoundMethod) CallOptimized(ctx context.Context, args []json.RawMessage)
 
 // Benchmark comparing original vs optimized Call
 func BenchmarkCallOriginal(b *testing.B) {
-	_ = New(Options{})
+	_ = NewTestApp(b, Options{})
 	bindings := NewBindings(nil, nil)
 
 	service := &benchService{}
@@ -182,7 +182,7 @@ func BenchmarkCallOriginal(b *testing.B) {
 }
 
 func BenchmarkCallOptimized(b *testing.B) {
-	_ = New(Options{})
+	_ = NewTestApp(b, Options{})
 	bindings := NewBindings(nil, nil)
 
 	service := &benchService{}
@@ -217,7 +217,7 @@ func (s *benchService) MultipleArgs(s1 string, i int, b bool) (string, int, bool
 }
 
 func BenchmarkCallOriginal_MultiArgs(b *testing.B) {
-	_ = New(Options{})
+	_ = NewTestApp(b, Options{})
 	bindings := NewBindings(nil, nil)
 
 	service := &benchService{}
@@ -245,7 +245,7 @@ func BenchmarkCallOriginal_MultiArgs(b *testing.B) {
 }
 
 func BenchmarkCallOptimized_MultiArgs(b *testing.B) {
-	_ = New(Options{})
+	_ = NewTestApp(b, Options{})
 	bindings := NewBindings(nil, nil)
 
 	service := &benchService{}
@@ -364,7 +364,7 @@ func (b *BoundMethod) CallWithJSONv2(ctx context.Context, args []json.RawMessage
 }
 
 func BenchmarkCallJSONv2(b *testing.B) {
-	_ = New(Options{})
+	_ = NewTestApp(b, Options{})
 	bindings := NewBindings(nil, nil)
 
 	service := &benchService{}
@@ -388,7 +388,7 @@ func BenchmarkCallJSONv2(b *testing.B) {
 }
 
 func BenchmarkCallJSONv2_MultiArgs(b *testing.B) {
-	_ = New(Options{})
+	_ = NewTestApp(b, Options{})
 	bindings := NewBindings(nil, nil)
 
 	service := &benchService{}
@@ -417,7 +417,7 @@ func BenchmarkCallJSONv2_MultiArgs(b *testing.B) {
 
 // Concurrent benchmark to test pool effectiveness under load
 func BenchmarkCallOriginal_Concurrent(b *testing.B) {
-	_ = New(Options{})
+	_ = NewTestApp(b, Options{})
 	bindings := NewBindings(nil, nil)
 
 	service := &benchService{}
@@ -443,7 +443,7 @@ func BenchmarkCallOriginal_Concurrent(b *testing.B) {
 }
 
 func BenchmarkCallOptimized_Concurrent(b *testing.B) {
-	_ = New(Options{})
+	_ = NewTestApp(b, Options{})
 	bindings := NewBindings(nil, nil)
 
 	service := &benchService{}

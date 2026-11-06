@@ -92,7 +92,7 @@ func benchArgs(jsonArgs ...string) []json.RawMessage {
 // BenchmarkMethodBinding measures the cost of registering services with varying method counts
 func BenchmarkMethodBinding(b *testing.B) {
 	// Initialize global application (required for bindings)
-	_ = application.New(application.Options{})
+	_ = application.NewTestApp(b, application.Options{})
 
 	b.Run("SingleService", func(b *testing.B) {
 		for b.Loop() {
@@ -112,7 +112,7 @@ func BenchmarkMethodBinding(b *testing.B) {
 
 // BenchmarkMethodLookupByID measures method lookup by ID performance
 func BenchmarkMethodLookupByID(b *testing.B) {
-	_ = application.New(application.Options{})
+	_ = application.NewTestApp(b, application.Options{})
 	bindings := application.NewBindings(nil, nil)
 	_ = bindings.Add(application.NewService(&BenchmarkService{}))
 
@@ -134,7 +134,7 @@ func BenchmarkMethodLookupByID(b *testing.B) {
 
 // BenchmarkMethodLookupByName measures method lookup by name performance
 func BenchmarkMethodLookupByName(b *testing.B) {
-	_ = application.New(application.Options{})
+	_ = application.NewTestApp(b, application.Options{})
 	bindings := application.NewBindings(nil, nil)
 	_ = bindings.Add(application.NewService(&BenchmarkService{}))
 
@@ -150,7 +150,7 @@ func BenchmarkMethodLookupByName(b *testing.B) {
 
 // BenchmarkSimpleCall measures the cost of calling a method with a simple string argument
 func BenchmarkSimpleCall(b *testing.B) {
-	_ = application.New(application.Options{})
+	_ = application.NewTestApp(b, application.Options{})
 	bindings := application.NewBindings(nil, nil)
 	_ = bindings.Add(application.NewService(&BenchmarkService{}))
 
@@ -173,7 +173,7 @@ func BenchmarkSimpleCall(b *testing.B) {
 
 // BenchmarkComplexCall measures the cost of calling a method with a complex struct argument
 func BenchmarkComplexCall(b *testing.B) {
-	_ = application.New(application.Options{})
+	_ = application.NewTestApp(b, application.Options{})
 	bindings := application.NewBindings(nil, nil)
 	_ = bindings.Add(application.NewService(&BenchmarkService{}))
 
@@ -203,7 +203,7 @@ func BenchmarkComplexCall(b *testing.B) {
 
 // BenchmarkVariadicCall measures the cost of calling a variadic method
 func BenchmarkVariadicCall(b *testing.B) {
-	_ = application.New(application.Options{})
+	_ = application.NewTestApp(b, application.Options{})
 	bindings := application.NewBindings(nil, nil)
 	_ = bindings.Add(application.NewService(&BenchmarkService{}))
 
@@ -226,7 +226,7 @@ func BenchmarkVariadicCall(b *testing.B) {
 
 // BenchmarkCallWithContext measures the cost of calling a method that requires context
 func BenchmarkCallWithContext(b *testing.B) {
-	_ = application.New(application.Options{})
+	_ = application.NewTestApp(b, application.Options{})
 	bindings := application.NewBindings(nil, nil)
 	_ = bindings.Add(application.NewService(&BenchmarkService{}))
 
@@ -341,7 +341,7 @@ func BenchmarkJSONUnmarshal(b *testing.B) {
 
 // BenchmarkMethodLookupWithAliases measures method lookup with alias resolution
 func BenchmarkMethodLookupWithAliases(b *testing.B) {
-	_ = application.New(application.Options{})
+	_ = application.NewTestApp(b, application.Options{})
 
 	// Create aliases map
 	aliases := make(map[uint32]uint32)
@@ -378,7 +378,7 @@ func BenchmarkMethodLookupWithAliases(b *testing.B) {
 
 // BenchmarkReflectValueCall measures the overhead of reflect.Value.Call
 func BenchmarkReflectValueCall(b *testing.B) {
-	_ = application.New(application.Options{})
+	_ = application.NewTestApp(b, application.Options{})
 	bindings := application.NewBindings(nil, nil)
 	_ = bindings.Add(application.NewService(&BenchmarkService{}))
 
@@ -415,7 +415,7 @@ func BenchmarkReflectValueCall(b *testing.B) {
 
 // BenchmarkBindingsScaling measures how bindings performance scales with service count
 func BenchmarkBindingsScaling(b *testing.B) {
-	_ = application.New(application.Options{})
+	_ = application.NewTestApp(b, application.Options{})
 
 	// We can only add one service of each type, so we test lookup scaling
 	bindings := application.NewBindings(nil, nil)
@@ -441,7 +441,7 @@ func BenchmarkBindingsScaling(b *testing.B) {
 
 // BenchmarkCallErrorPath measures the cost of error handling in method calls
 func BenchmarkCallErrorPath(b *testing.B) {
-	_ = application.New(application.Options{})
+	_ = application.NewTestApp(b, application.Options{})
 	bindings := application.NewBindings(nil, nil)
 	_ = bindings.Add(application.NewService(&BenchmarkService{}))
 
@@ -472,7 +472,7 @@ func BenchmarkCallErrorPath(b *testing.B) {
 
 // BenchmarkSliceArgSizes measures performance with varying slice sizes
 func BenchmarkSliceArgSizes(b *testing.B) {
-	_ = application.New(application.Options{})
+	_ = application.NewTestApp(b, application.Options{})
 	bindings := application.NewBindings(nil, nil)
 	_ = bindings.Add(application.NewService(&BenchmarkService{}))
 

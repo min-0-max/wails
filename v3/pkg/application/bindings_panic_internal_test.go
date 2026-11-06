@@ -16,17 +16,11 @@ func (panicTestService) Boom() { panic("kaboom") }
 // *CallError. The pre-fix code returned (nil, nil) on this path, silently
 // resolving the frontend promise with null.
 //
-// This is an internal test so it can swap the PanicHandler on the global
-// application (application.New is a singleton, so the handler cannot be
-// installed from the external test package). The previous handler is restored
-// on cleanup to avoid affecting other tests.
+// The handler is installed through the options of a new application, which
+// the test discards when it ends.
 func TestBoundMethodPanicInvokesPanicHandler(t *testing.T) {
-	app := New(Options{})
-	prev := app.options.PanicHandler
-	t.Cleanup(func() { app.options.PanicHandler = prev })
-
 	var handled *PanicDetails
-	app.options.PanicHandler = func(d *PanicDetails) { handled = d }
+	NewTestApp(t, Options{PanicHandler: func(d *PanicDetails) { handled = d }})
 
 	bindings := NewBindings(nil, nil)
 	if err := bindings.Add(NewService(&panicTestService{})); err != nil {

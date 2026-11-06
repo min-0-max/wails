@@ -40,20 +40,17 @@ func newTestMenuWindow(t *testing.T) *windowsWebviewWindow {
 }
 
 // withTestApplication gives the package a global application to log through,
-// since setMenu debug-logs on a path these tests take, and puts back whatever
-// was there.
+// since setMenu debug-logs on a path these tests take, and removes it when the
+// test ends.
 func withTestApplication(t *testing.T) {
 	t.Helper()
-	previous := globalApplication
-	globalApplication = nil
-	app := New(Options{Name: "menu test"})
+	app := NewTestApp(t, Options{Name: "menu test"})
 	// Marked as running, because that is the only state in which any of this
 	// misbehaves: Menu.Update returns before touching its receiver otherwise,
 	// so a nil menu would not panic and a real one would not be rebuilt.
 	app.runLock.Lock()
 	app.running = true
 	app.runLock.Unlock()
-	t.Cleanup(func() { globalApplication = previous })
 }
 
 // A nil menu means "no menu", which is what macOS makes of it. Menu.Update

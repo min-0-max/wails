@@ -154,7 +154,7 @@ func TestBoundMethodCall(t *testing.T) {
 	}
 
 	// init globalApplication
-	_ = application.New(application.Options{})
+	_ = application.NewTestApp(t, application.Options{})
 
 	bindings := application.NewBindings(nil, nil)
 
@@ -194,7 +194,7 @@ func TestRegisteredBindingMethodID(t *testing.T) {
 	const stableID uint32 = 4000000001
 
 	// init globalApplication
-	_ = application.New(application.Options{})
+	_ = application.NewTestApp(t, application.Options{})
 
 	application.RegisterBindingMethodID((*TestService).String, stableID)
 	t.Cleanup(func() { application.UnregisterBindingMethodID((*TestService).String) })
@@ -247,7 +247,7 @@ func (t *TestService) PanicNilDeref() string {
 // behaviour this test binary would die with the catastrophic-failure banner).
 func TestBoundMethodPanic(t *testing.T) {
 	// init globalApplication
-	_ = application.New(application.Options{})
+	_ = application.NewTestApp(t, application.Options{})
 
 	bindings := application.NewBindings(nil, nil)
 	if err := bindings.Add(application.NewService(&TestService{})); err != nil {

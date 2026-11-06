@@ -36,7 +36,7 @@ func TestTheContentOfAWindowIsItsRequestedSize(t *testing.T) {
 		t.Fatal("AppKit is not available")
 	}
 	const width, height = 800, 600
-	app := New(Options{})
+	app := NewTestApp(t, Options{})
 	app.impl = newPlatformApp(app)
 	// A running application reads the events of its windows. Without that a new
 	// size waits on the first event that it sends.

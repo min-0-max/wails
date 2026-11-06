@@ -10,16 +10,9 @@ import (
 	"time"
 )
 
-// resetGlobalApp resets the global application state for testing
-func resetGlobalApp() {
-	globalApplication = nil
-}
-
 func TestServerMode_HealthEndpoint(t *testing.T) {
-	resetGlobalApp()
-
 	// Create a server mode app (server mode is enabled via build tag)
-	app := New(Options{
+	app := NewTestApp(t, Options{
 		Name: "Test Server",
 		Server: ServerOptions{
 			Host: "127.0.0.1",
@@ -74,11 +67,9 @@ func TestServerMode_HealthEndpoint(t *testing.T) {
 }
 
 func TestServerMode_AssetServing(t *testing.T) {
-	resetGlobalApp()
-
 	testContent := "Hello from server mode!"
 
-	app := New(Options{
+	app := NewTestApp(t, Options{
 		Name: "Test Assets",
 		Server: ServerOptions{
 			Host: "127.0.0.1",
@@ -123,9 +114,7 @@ func TestServerMode_AssetServing(t *testing.T) {
 }
 
 func TestServerMode_Defaults(t *testing.T) {
-	resetGlobalApp()
-
-	app := New(Options{
+	app := NewTestApp(t, Options{
 		Name: "Test Defaults",
 		Server: ServerOptions{
 			Port: 18083, // Use specific port to avoid conflicts
