@@ -194,7 +194,7 @@ func killProcessAndCleanupBinary(process *process.Process, binary string) error 
 }
 
 func runCommand(dir string, exitOnError bool, command string, args ...string) error {
-	logutils.LogGreen("%s", "Executing: " + command + " " + strings.Join(args, " "))
+	logutils.LogGreen("%s", "Executing: "+command+" "+strings.Join(args, " "))
 	cmd := exec.Command(command, args...)
 	cmd.Dir = dir
 	output, err := cmd.CombinedOutput()
@@ -280,7 +280,7 @@ func restartApp(buildOptions *build.Options, debugBinaryProcess *process.Process
 	appBinary, err := build.Build(buildOptions)
 	println()
 	if err != nil {
-		logutils.LogRed("%s", "Build error - " + err.Error())
+		logutils.LogRed("%s", "Build error - "+err.Error())
 
 		msg := "Continuing to run current version"
 		if debugBinaryProcess == nil {
@@ -321,7 +321,7 @@ func restartApp(buildOptions *build.Options, debugBinaryProcess *process.Process
 		if fs.FileExists(appBinary) {
 			deleteError := fs.DeleteFile(appBinary)
 			if deleteError != nil {
-				buildOptions.Logger.Fatal("%s", "Unable to delete app binary: " + appBinary)
+				buildOptions.Logger.Fatal("%s", "Unable to delete app binary: "+appBinary)
 			}
 		}
 		buildOptions.Logger.Fatal("Unable to start application: %s", err.Error())

@@ -110,4 +110,3 @@ func findSchemeURL(args []string) (string, bool) {
 	}
 	return "", false
 }
-

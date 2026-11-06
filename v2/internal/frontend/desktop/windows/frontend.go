@@ -73,9 +73,9 @@ type Frontend struct {
 
 	// Pending JS callbacks are batched to avoid saturating WebView2's
 	// ExecuteScript queue under heavy concurrent Go->JS call load.
-	callbackMu      sync.Mutex
+	callbackMu       sync.Mutex
 	pendingCallbacks []string
-	drainScheduled  bool
+	drainScheduled   bool
 }
 
 func NewFrontend(ctx context.Context, appoptions *options.App, myLogger *logger.Logger, appBindings *binding.Bindings, dispatcher frontend.Dispatcher) *Frontend {

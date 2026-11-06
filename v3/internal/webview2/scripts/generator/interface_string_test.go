@@ -67,4 +67,4 @@ interface ICoreWebView2 : IUnknown {
 
   [propget] HRESULT Settings([out, retval] ICoreWebView2Settings** settings);
 
- */
+*/

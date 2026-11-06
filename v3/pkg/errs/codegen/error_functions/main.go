@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"go/ast"
+	"go/format"
 	"go/parser"
 	"go/token"
 	"os"
@@ -84,14 +86,18 @@ func main() {
 		return true
 	})
 
-	file, err := os.Create("error_functions.gen.go")
+	var buf bytes.Buffer
+	t := template.Must(template.New("tmpl").Parse(tmpl))
+	if err := t.Execute(&buf, errorTypes); err != nil {
+		panic(err)
+	}
+
+	source, err := format.Source(buf.Bytes())
 	if err != nil {
 		panic(err)
 	}
-	defer file.Close()
 
-	t := template.Must(template.New("tmpl").Parse(tmpl))
-	if err := t.Execute(file, errorTypes); err != nil {
+	if err := os.WriteFile("error_functions.gen.go", source, 0o644); err != nil {
 		panic(err)
 	}
 }
