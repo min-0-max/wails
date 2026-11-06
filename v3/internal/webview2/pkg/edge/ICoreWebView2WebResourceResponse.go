@@ -90,10 +90,12 @@ func (i *ICoreWebView2WebResourceResponse) PutStatusCode(statusCode int) error {
 	return nil
 }
 
-func (i *ICoreWebView2WebResourceResponse) PutContent(content *IStream) error {
+// PutContent sets the body of the response. content is the address of an
+// IStream, or 0 for no body.
+func (i *ICoreWebView2WebResourceResponse) PutContent(content uintptr) error {
 	hr, _, _ := i.vtbl.PutContent.Call(
 		uintptr(unsafe.Pointer(i)),
-		uintptr(unsafe.Pointer(content)),
+		content,
 	)
 	if windows.Handle(hr) != windows.S_OK {
 		return syscall.Errno(hr)
@@ -103,15 +105,15 @@ func (i *ICoreWebView2WebResourceResponse) PutContent(content *IStream) error {
 }
 
 func (i *ICoreWebView2WebResourceResponse) PutByteContent(content []byte) error {
-	var stream *IStream
+	var stream uintptr
 	if len(content) > 0 {
 		// Create stream for response
-		str, err := w32.SHCreateMemStream(content)
+		var err error
+		stream, err = w32.SHCreateMemStream(content)
 		if err != nil {
 			return err
 		}
-		stream = (*IStream)(unsafe.Pointer(str))
-		defer stream.Release()
+		defer releaseComObject(stream)
 	}
 
 	return i.PutContent(stream)

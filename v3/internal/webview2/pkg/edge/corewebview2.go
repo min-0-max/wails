@@ -488,7 +488,7 @@ func (e *ICoreWebView2Environment) CreateWebResourceResponse(content []byte, sta
 
 		// Release the IStream after we are finished, CreateWebResourceResponse Call will increase the reference
 		// count on IStream and therefore it won't be freed until the reference count of the response is 0.
-		defer (*IStream)(unsafe.Pointer(stream)).Release()
+		defer releaseComObject(stream)
 	}
 
 	// Convert string 'uri' to *uint16
