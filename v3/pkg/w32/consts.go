@@ -56,6 +56,13 @@ func GetBranding() string {
 	ret, _, _ := brandingFormatString.Call(
 		uintptr(unsafe.Pointer(windowsLong)),
 	)
+	if ret == 0 {
+		return ""
+	}
+	// The caller frees the string that BrandingFormatString returns. A
+	// failure to free it is not worth a panic over the name of the edition,
+	// so the result of GlobalFree is ignored.
+	defer kernelGlobalFree.Call(ret)
 	return windows.UTF16PtrToString((*uint16)(unsafe.Pointer(ret)))
 }
 
