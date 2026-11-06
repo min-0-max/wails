@@ -35,8 +35,8 @@ type vTable struct {
 
 	Name      string
 	ComGUID   string
-	ComVTable uintptr
-	ComProcs  []uintptr
+	ComVTable uintptr   // the vtable in memory that Windows allocated
+	ComProcs  []uintptr // the Go copy of the entries at ComVTable
 }
 
 func registerVTableInternal[TParent, T IUnknown](guid string, isInternal bool, fns ...interface{}) {
@@ -82,15 +82,12 @@ func registerVTableInternal[TParent, T IUnknown](guid string, isInternal bool, f
 		Name:    tName,
 		ComGUID: comGuid.String(),
 	}
-	vTable.ComVTable, vTable.ComProcs = allocUintptrObject(parentProcsCount + len(fns))
-
-	for i, proc := range parentProcs {
-		vTable.ComProcs[i] = proc
-	}
-
+	vTable.ComProcs = make([]uintptr, parentProcsCount+len(fns))
+	copy(vTable.ComProcs, parentProcs)
 	for i, fn := range fns {
 		vTable.ComProcs[parentProcsCount+i] = windows.NewCallback(fn)
 	}
+	vTable.ComVTable = allocUintptrObject(vTable.ComProcs)
 
 	vTables[tName] = vTable
 }

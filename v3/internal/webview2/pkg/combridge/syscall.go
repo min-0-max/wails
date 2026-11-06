@@ -5,6 +5,7 @@ package combridge
 import (
 	"unsafe"
 
+	"github.com/wailsapp/wails/v3/internal/osmem"
 	"golang.org/x/sys/windows"
 )
 
@@ -16,10 +17,12 @@ var (
 	uintptrSize = unsafe.Sizeof(uintptr(0))
 )
 
-func allocUintptrObject(size int) (uintptr, []uintptr) {
-	v := globalAlloc(uintptr(size) * uintptrSize)
-	slice := unsafe.Slice((*uintptr)(unsafe.Pointer(v)), size)
-	return v, slice
+// allocUintptrObject copies values into memory that Windows allocates and
+// returns its address, which COM clients read as an interface or a vtable.
+func allocUintptrObject(values []uintptr) uintptr {
+	v := globalAlloc(uintptr(len(values)) * uintptrSize)
+	osmem.WriteSlice(v, values)
+	return v
 }
 
 func globalAlloc(dwBytes uintptr) uintptr {
