@@ -40,3 +40,22 @@
 }
 
 @end
+
+void wailsSetOpenPanelFilter(NSOpenPanel *panel, NSArray<NSString *> *extensions) {
+    OpenPanelDelegate *delegate = [[OpenPanelDelegate alloc] init];
+    [panel setDelegate:delegate];
+    delegate.allowedExtensions = extensions;
+
+    // The panel limits its files to content types only when every extension
+    // has one. An extension without one, such as tar.gz, leaves the panel
+    // without a type restriction, and the delegate filters by the suffix.
+    NSMutableArray<UTType *> *types = [NSMutableArray arrayWithCapacity:[extensions count]];
+    for (NSString *extension in extensions) {
+        UTType *type = [UTType typeWithFilenameExtension:extension];
+        if (type == nil) {
+            return;
+        }
+        [types addObject:type];
+    }
+    [panel setAllowedContentTypes:types];
+}

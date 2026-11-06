@@ -9,7 +9,6 @@ package application
 #include "mainthread_darwin.h"
 #import <Cocoa/Cocoa.h>
 
-#import <UniformTypeIdentifiers/UTType.h>
 #import "dialogs_darwin_delegate.h"
 
 extern void openFileDialogCallback(uint id, char* path);
@@ -174,44 +173,10 @@ static void showOpenFileDialog(unsigned int dialogID,
 		// run on main thread
 		NSOpenPanel *panel = [NSOpenPanel openPanel];
 
-		// print out filterPatterns if length > 0
 		if (filterPatternsCount > 0) {
-			OpenPanelDelegate *delegate = [[OpenPanelDelegate alloc] init];
-			[panel setDelegate:delegate];
-			// Initialise NSString with bytes and UTF8 encoding
 			NSString *filterPatternsString = [[NSString alloc] initWithBytes:filterPatterns length:filterPatternsCount encoding:NSUTF8StringEncoding];
-			// Convert NSString to NSArray
-			delegate.allowedExtensions = [filterPatternsString componentsSeparatedByString:@";"];
-			// componentsSeparatedByString: returned a new (retained-by-property) array
+			wailsSetOpenPanelFilter(panel, [filterPatternsString componentsSeparatedByString:@";"]);
 			[filterPatternsString release];
-
-				// Use UTType if macOS 11 or higher to add file filters
-	#if MAC_OS_X_VERSION_MAX_ALLOWED >= 110000
-			if (@available(macOS 11, *)) {
-				NSMutableArray *filterTypes = [NSMutableArray array];
-				NSMutableArray *legacyTypes = [NSMutableArray array];
-
-				for (NSString *filterType in delegate.allowedExtensions) {
-					UTType *utType = [UTType typeWithFilenameExtension:filterType];
-					if (utType != nil) {
-						[filterTypes addObject:utType];
-					} else {
-						[legacyTypes addObject:filterType];
-					}
-				}
-
-				if ([filterTypes count] > 0) {
-					[panel setAllowedContentTypes:filterTypes];
-				}
-				if ([legacyTypes count] > 0) {
-					[panel setAllowedFileTypes:legacyTypes];
-				}
-			}
-	#else
-			[panel setAllowedFileTypes:delegate.allowedExtensions];
-	#endif
-
-			// Free the memory
 			free(filterPatterns);
 		}
 
