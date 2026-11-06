@@ -98,10 +98,10 @@ void systemTraySetANSILabel(void* nsStatusItem, void* label) {
 
         // Set the label on the main thread.
         dispatch_async(dispatch_get_main_queue(), ^{
-            // setAttributedTitle: copies the string, so drop the owning
-            // reference we accumulated while building it.
+            // The button copies the string, so drop the owning reference we
+            // accumulated while building it.
             NSStatusItem *statusItem = (NSStatusItem *)nsStatusItem;
-            [statusItem setAttributedTitle:attributedString];
+            statusItem.button.attributedTitle = attributedString;
             [attributedString release];
         });
     });

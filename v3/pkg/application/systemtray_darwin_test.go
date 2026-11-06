@@ -2,7 +2,11 @@
 
 package application
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/wailsapp/wails/v3/pkg/application/internal/mainthreadharness"
+)
 
 // NSEventType and pressedMouseButtons bit values from AppKit, duplicated
 // here so the test does not need to import AppKit.
@@ -97,5 +101,16 @@ func TestCoerceStatusItemEventType_MacOS27Regression(t *testing.T) {
 					tc.rawEventType, tc.pressed, got, tc.wantEventType)
 			}
 		})
+	}
+}
+
+// A label with colours reaches the status item's button with its colours.
+func TestSystemTrayANSILabelReachesTheButton(t *testing.T) {
+	if !appKitReady {
+		t.Fatal("AppKit is not available")
+	}
+	title, sameAttributes := mainthreadharness.StatusItemLabel("CPU 42%")
+	if title != "CPU 42%" || !sameAttributes {
+		t.Errorf("the button shows %q with the label's attributes = %v, want %q with them", title, sameAttributes, "CPU 42%")
 	}
 }

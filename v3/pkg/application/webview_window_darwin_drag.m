@@ -17,7 +17,7 @@ extern void macosOnDragOver(unsigned int windowId, int x, int y);
 - (instancetype)initWithFrame:(NSRect)frameRect {
     self = [super initWithFrame:frameRect];
     if (self) {
-        [self registerForDraggedTypes:@[NSFilenamesPboardType]];
+        [self registerForDraggedTypes:wailsFileDropTypes()];
     }
     return self;
 }
@@ -32,7 +32,7 @@ extern void macosOnDragOver(unsigned int windowId, int x, int y);
 // draggingEntered:
 - (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender {
     NSPasteboard *pasteboard = [sender draggingPasteboard];
-    if ([[pasteboard types] containsObject:NSFilenamesPboardType]) {
+    if (wailsPasteboardHasFiles(pasteboard)) {
         processWindowEvent(self.windowId, EventWindowFileDraggingEntered);
         // Notify JS for hover effects
         macosOnDragEnter(self.windowId);
@@ -44,7 +44,7 @@ extern void macosOnDragOver(unsigned int windowId, int x, int y);
 // draggingUpdated:
 - (NSDragOperation)draggingUpdated:(id<NSDraggingInfo>)sender {
     NSPasteboard *pasteboard = [sender draggingPasteboard];
-    if ([[pasteboard types] containsObject:NSFilenamesPboardType]) {
+    if (wailsPasteboardHasFiles(pasteboard)) {
         // Get the current mouse position
         NSPoint dropPointInWindow = [sender draggingLocation];
         NSPoint dropPointInView = [self convertPoint:dropPointInWindow fromView:nil];
@@ -80,8 +80,8 @@ extern void macosOnDragOver(unsigned int windowId, int x, int y);
 - (BOOL)performDragOperation:(id<NSDraggingInfo>)sender {
     NSPasteboard *pasteboard = [sender draggingPasteboard];
     processWindowEvent(self.windowId, EventWindowFileDraggingPerformed);
-    if ([[pasteboard types] containsObject:NSFilenamesPboardType]) {
-        NSArray *files = [pasteboard propertyListForType:NSFilenamesPboardType];
+    if (wailsPasteboardHasFiles(pasteboard)) {
+        NSArray<NSString *> *files = wailsPasteboardFilePaths(pasteboard);
         NSUInteger count = [files count];
         if (count == 0) {
             return NO;
@@ -112,3 +112,26 @@ extern void macosOnDragOver(unsigned int windowId, int x, int y);
 }
 
 @end
+
+NSArray<NSPasteboardType> *wailsFileDropTypes(void) {
+    return @[NSPasteboardTypeFileURL];
+}
+
+// Reads only file URLs, so a web URL dragged along with files is not taken
+// for a file.
+static NSDictionary<NSPasteboardReadingOptionKey, id> *wailsFileURLsOnly(void) {
+    return @{NSPasteboardURLReadingFileURLsOnlyKey: @YES};
+}
+
+BOOL wailsPasteboardHasFiles(NSPasteboard *pasteboard) {
+    return [pasteboard canReadObjectForClasses:@[NSURL.class] options:wailsFileURLsOnly()];
+}
+
+NSArray<NSString *> *wailsPasteboardFilePaths(NSPasteboard *pasteboard) {
+    NSArray<NSURL *> *urls = [pasteboard readObjectsForClasses:@[NSURL.class] options:wailsFileURLsOnly()];
+    NSMutableArray<NSString *> *paths = [NSMutableArray arrayWithCapacity:[urls count]];
+    for (NSURL *url in urls) {
+        [paths addObject:[url path]];
+    }
+    return paths;
+}

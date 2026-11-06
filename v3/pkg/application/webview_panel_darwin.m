@@ -2,6 +2,7 @@
 
 #import <Cocoa/Cocoa.h>
 #import "webview_panel_darwin.h"
+#import "webview_window_darwin_drag.h"
 
 extern bool processWindowKeyEquivalent(unsigned int, unsigned long long, const char*);
 extern void processWindowKeyDownEvent(unsigned int, unsigned long long, const char*);
@@ -98,7 +99,7 @@ extern void processWindowKeyDownEvent(unsigned int, unsigned long long, const ch
     [super setDelegate:delegate];
     [previousDelegate release];
     if ([delegate isKindOfClass:[WebviewWindowDelegate class]]) {
-        [self registerForDraggedTypes:@[NSFilenamesPboardType]];
+        [self registerForDraggedTypes:wailsFileDropTypes()];
     }
 }
 

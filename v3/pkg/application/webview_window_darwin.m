@@ -3,6 +3,7 @@
 #import <Cocoa/Cocoa.h>
 #import <QuartzCore/QuartzCore.h>
 #import "webview_window_darwin.h"
+#import "webview_window_darwin_drag.h"
 #import "mac_private_api_darwin.h"
 #import "mainthread_darwin.h"
 #import "../events/events_darwin.h"
@@ -372,7 +373,7 @@ BOOL dispatchKeyEquivalent(NSEvent* event, NSWindow* window) {
     [super setDelegate: delegate];
     // If the delegate is our WebviewWindowDelegate (which handles NSDraggingDestination)
     if ([delegate isKindOfClass:[WebviewWindowDelegate class]]) {
-        [self registerForDraggedTypes:@[NSFilenamesPboardType]]; // 'self' is the WebviewWindow instance
+        [self registerForDraggedTypes:wailsFileDropTypes()]; // 'self' is the WebviewWindow instance
     }
 }
 - (void)close {
@@ -427,7 +428,7 @@ BOOL dispatchKeyEquivalent(NSEvent* event, NSWindow* window) {
 @implementation WebviewWindowDelegate
 - (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender {
     NSPasteboard *pasteboard = [sender draggingPasteboard];
-    if ([[pasteboard types] containsObject:NSFilenamesPboardType]) {
+    if (wailsPasteboardHasFiles(pasteboard)) {
         if (hasListeners(EventWindowFileDraggingEntered)) {
              processWindowEvent(self.windowId, EventWindowFileDraggingEntered);
         }
@@ -448,8 +449,8 @@ BOOL dispatchKeyEquivalent(NSEvent* event, NSWindow* window) {
     if (hasListeners(EventWindowFileDraggingPerformed)) {
         processWindowEvent(self.windowId, EventWindowFileDraggingPerformed);
     }
-    if ([[pasteboard types] containsObject:NSFilenamesPboardType]) {
-        NSArray *files = [pasteboard propertyListForType:NSFilenamesPboardType];
+    if (wailsPasteboardHasFiles(pasteboard)) {
+        NSArray<NSString *> *files = wailsPasteboardFilePaths(pasteboard);
         NSUInteger count = [files count];
         if (count == 0) {
             return NO;
@@ -1077,6 +1078,58 @@ void configureWebViewForLiquidGlass(void* nsWindow) {
         webView.layer.rasterizationScale = [[NSScreen mainScreen] backingScaleFactor];
     }
 }
+// Creates the NSVisualEffectView that stands in for the liquid glass when
+// NSGlassEffectView is not available.
+NSVisualEffectView* wailsNewVisualEffectView(int style, int material, double cornerRadius) {
+    NSVisualEffectView* effectView = [[[NSVisualEffectView alloc] init] autorelease];
+    // If a custom material is specified, use it directly
+    if (material >= 0) {
+        [effectView setMaterial:(NSVisualEffectMaterial)material];
+        [effectView setBlendingMode:NSVisualEffectBlendingModeBehindWindow];
+    } else {
+        // Configure the visual effect based on style
+        switch(style) {
+            case 1: // Light
+                if (@available(macOS 15.0, *)) {
+                    [effectView setMaterial:NSVisualEffectMaterialUnderPageBackground];
+                } else {
+                    [effectView setMaterial:NSVisualEffectMaterialHUDWindow];
+                }
+                [effectView setBlendingMode:NSVisualEffectBlendingModeBehindWindow];
+                break;
+            case 2: // Dark
+                if (@available(macOS 15.0, *)) {
+                    [effectView setMaterial:NSVisualEffectMaterialHeaderView];
+                } else {
+                    [effectView setMaterial:NSVisualEffectMaterialFullScreenUI];
+                }
+                [effectView setBlendingMode:NSVisualEffectBlendingModeBehindWindow];
+                break;
+            case 3: // Vibrant
+                // Use the lightest material available - similar to dock
+                [effectView setMaterial:NSVisualEffectMaterialHUDWindow];
+                // Use behind window for true transparency
+                [effectView setBlendingMode:NSVisualEffectBlendingModeBehindWindow];
+                break;
+            default: // Automatic
+                // Use content background for lighter automatic effect
+                [effectView setMaterial:NSVisualEffectMaterialContentBackground];
+                [effectView setBlendingMode:NSVisualEffectBlendingModeWithinWindow];
+                break;
+        }
+    }
+    // Use followsWindowActiveState for automatic adjustment
+    [effectView setState:NSVisualEffectStateFollowsWindowActiveState];
+    // Don't emphasize - it makes the effect too dark
+    [effectView setEmphasized:NO];
+    // Apply corner radius if specified
+    if (cornerRadius > 0) {
+        [effectView setWantsLayer:YES];
+        effectView.layer.cornerRadius = cornerRadius;
+        effectView.layer.masksToBounds = YES;
+    }
+    return effectView;
+}
 // Apply Liquid Glass effect to window
 void windowSetLiquidGlass(void* nsWindow, int style, int material, double cornerRadius,
                           int r, int g, int b, int a,
@@ -1117,70 +1170,7 @@ void windowSetLiquidGlass(void* nsWindow, int style, int material, double corner
     }
     // Fallback to NSVisualEffectView if NSGlassEffectView is not available
     if (!glassView) {
-        NSVisualEffectView* effectView = [[[NSVisualEffectView alloc] init] autorelease];
-        glassView = effectView; // Use effectView as glassView for the rest of the function
-        // If a custom material is specified, use it directly
-        if (material >= 0) {
-            [effectView setMaterial:(NSVisualEffectMaterial)material];
-            [effectView setBlendingMode:NSVisualEffectBlendingModeBehindWindow];
-        } else {
-            // Configure the visual effect based on style
-            switch(style) {
-                case 1: // Light
-                    if (@available(macOS 15.0, *)) {
-                        [effectView setMaterial:NSVisualEffectMaterialUnderPageBackground];
-                    } else if (@available(macOS 10.14, *)) {
-                        [effectView setMaterial:NSVisualEffectMaterialHUDWindow];
-                    } else {
-                        [effectView setMaterial:NSVisualEffectMaterialLight];
-                    }
-                    [effectView setBlendingMode:NSVisualEffectBlendingModeBehindWindow];
-                    break;
-                case 2: // Dark
-                    if (@available(macOS 15.0, *)) {
-                        [effectView setMaterial:NSVisualEffectMaterialHeaderView];
-                    } else if (@available(macOS 10.14, *)) {
-                        [effectView setMaterial:NSVisualEffectMaterialFullScreenUI];
-                    } else {
-                        [effectView setMaterial:NSVisualEffectMaterialDark];
-                    }
-                    [effectView setBlendingMode:NSVisualEffectBlendingModeBehindWindow];
-                    break;
-                case 3: // Vibrant
-                    if (@available(macOS 11.0, *)) {
-                        // Use the lightest material available - similar to dock
-                        [effectView setMaterial:NSVisualEffectMaterialHUDWindow];
-                    } else if (@available(macOS 10.14, *)) {
-                        [effectView setMaterial:NSVisualEffectMaterialSheet];
-                    } else {
-                        [effectView setMaterial:NSVisualEffectMaterialLight];
-                    }
-                    // Use behind window for true transparency
-                    [effectView setBlendingMode:NSVisualEffectBlendingModeBehindWindow];
-                    break;
-                default: // Automatic
-                    if (@available(macOS 10.14, *)) {
-                        // Use content background for lighter automatic effect
-                        [effectView setMaterial:NSVisualEffectMaterialContentBackground];
-                    } else {
-                        [effectView setMaterial:NSVisualEffectMaterialAppearanceBased];
-                    }
-                    [effectView setBlendingMode:NSVisualEffectBlendingModeWithinWindow];
-                    break;
-            }
-        }
-        // Use followsWindowActiveState for automatic adjustment
-        [effectView setState:NSVisualEffectStateFollowsWindowActiveState];
-        // Don't emphasize - it makes the effect too dark
-        if (@available(macOS 10.12, *)) {
-            [effectView setEmphasized:NO];
-        }
-        // Apply corner radius if specified
-        if (cornerRadius > 0) {
-            [effectView setWantsLayer:YES];
-            effectView.layer.cornerRadius = cornerRadius;
-            effectView.layer.masksToBounds = YES;
-        }
+        glassView = wailsNewVisualEffectView(style, material, cornerRadius);
     }
     // Get the content view
     NSView* contentView = [window contentView];

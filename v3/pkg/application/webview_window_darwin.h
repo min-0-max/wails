@@ -63,4 +63,8 @@ void windowSetLiquidGlass(void* window, int style, int material, double cornerRa
 void windowRemoveVisualEffects(void* window);
 void configureWebViewForLiquidGlass(void* window);
 
+// Creates the NSVisualEffectView that stands in for the liquid glass when
+// NSGlassEffectView is not available.
+NSVisualEffectView* wailsNewVisualEffectView(int style, int material, double cornerRadius);
+
 #endif /* WebviewWindowDelegate_h */
