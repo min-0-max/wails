@@ -8,7 +8,10 @@ package w32
 
 import (
 	"syscall"
+	"unicode/utf16"
 	"unsafe"
+
+	"github.com/wailsapp/wails/v3/internal/osmem"
 )
 
 var (
@@ -30,21 +33,30 @@ func VariantInit(v *VARIANT) {
 	return
 }
 
-func SysAllocString(v string) (ss *int16) {
-	pss, _, _ := procSysAllocString.Call(uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(v))))
-	ss = (*int16)(unsafe.Pointer(pss))
-	return
+// SysAllocString returns a BSTR that holds v. A BSTR is the address of a
+// string that oleaut32 owns, so it stays a uintptr in Go and is read by copy.
+func SysAllocString(v string) uintptr {
+	bstr, _, _ := procSysAllocString.Call(uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(v))))
+	return bstr
 }
 
-func SysFreeString(v *int16) {
-	hr, _, _ := procSysFreeString.Call(uintptr(unsafe.Pointer(v)))
+func SysFreeString(v uintptr) {
+	hr, _, _ := procSysFreeString.Call(v)
 	if hr != 0 {
 		panic("Invoke SysFreeString error.")
 	}
 	return
 }
 
-func SysStringLen(v *int16) uint {
-	l, _, _ := procSysStringLen.Call(uintptr(unsafe.Pointer(v)))
+func SysStringLen(v uintptr) uint {
+	l, _, _ := procSysStringLen.Call(v)
 	return uint(l)
+}
+
+// bstrToString returns a copy of the BSTR v. A zero v gives the empty string.
+func bstrToString(v uintptr) string {
+	if v == 0 {
+		return ""
+	}
+	return string(utf16.Decode(osmem.ReadSlice[uint16](v, int(SysStringLen(v)))))
 }

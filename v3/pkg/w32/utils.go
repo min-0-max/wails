@@ -183,7 +183,7 @@ func ComInvoke(disp *IDispatch, dispid int32, dispatch int16, params ...interfac
 			case *float64:
 				vargs[n] = VARIANT{VT_R8 | VT_BYREF, 0, 0, 0, int64(uintptr(unsafe.Pointer(v.(*float64))))}
 			case string:
-				vargs[n] = VARIANT{VT_BSTR, 0, 0, 0, int64(uintptr(unsafe.Pointer(SysAllocString(v.(string)))))}
+				vargs[n] = VARIANT{VT_BSTR, 0, 0, 0, int64(SysAllocString(v.(string)))}
 			case *string:
 				vargs[n] = VARIANT{VT_BSTR | VT_BYREF, 0, 0, 0, int64(uintptr(unsafe.Pointer(v.(*string))))}
 			case *IDispatch:
@@ -216,14 +216,14 @@ func ComInvoke(disp *IDispatch, dispid int32, dispatch int16, params ...interfac
 		uintptr(unsafe.Pointer(&excepInfo)),
 		0)
 	if hr != 0 {
-		if excepInfo.BstrDescription != nil {
-			bs := UTF16PtrToString(excepInfo.BstrDescription)
+		if excepInfo.BstrDescription != 0 {
+			bs := bstrToString(excepInfo.BstrDescription)
 			panic(bs)
 		}
 	}
 	for _, varg := range vargs {
 		if varg.VT == VT_BSTR && varg.Val != 0 {
-			SysFreeString(((*int16)(unsafe.Pointer(uintptr(varg.Val)))))
+			SysFreeString(uintptr(varg.Val))
 		}
 	}
 	result = &ret
