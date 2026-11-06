@@ -40,12 +40,9 @@ func SysAllocString(v string) uintptr {
 	return bstr
 }
 
+// SysFreeString frees the BSTR v. The Windows function returns nothing.
 func SysFreeString(v uintptr) {
-	hr, _, _ := procSysFreeString.Call(v)
-	if hr != 0 {
-		panic("Invoke SysFreeString error.")
-	}
-	return
+	procSysFreeString.Call(v)
 }
 
 func SysStringLen(v uintptr) uint {
