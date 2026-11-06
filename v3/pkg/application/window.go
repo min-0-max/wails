@@ -1,10 +1,12 @@
 package application
 
 import (
-	"unsafe"
-
 	"github.com/wailsapp/wails/v3/pkg/events"
 )
+
+// noNativeHandle is the zero NativeHandle, which NativeWindow returns for a
+// window that has no native window.
+var noNativeHandle NativeHandle
 
 type Window interface {
 	Center()
@@ -88,7 +90,10 @@ type Window interface {
 	SetMenu(menu *Menu)
 	SnapAssist()
 	SetContentProtection(protection bool) Window
-	NativeWindow() unsafe.Pointer
+	// NativeWindow returns the native handle of the window, or the zero
+	// NativeHandle when the window has none. NativeHandle is a uintptr
+	// holding the HWND on Windows and an unsafe.Pointer elsewhere.
+	NativeWindow() NativeHandle
 	SetEnabled(enabled bool)
 	Flash(enabled bool)
 	Print() error

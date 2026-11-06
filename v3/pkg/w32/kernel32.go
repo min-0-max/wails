@@ -136,14 +136,14 @@ func GlobalFree(hMem HGLOBAL) {
 	}
 }
 
-func GlobalLock(hMem HGLOBAL) unsafe.Pointer {
+func GlobalLock(hMem HGLOBAL) uintptr {
 	ret, _, _ := procGlobalLock.Call(uintptr(hMem))
 
 	if ret == 0 {
 		panic("GlobalLock failed")
 	}
 
-	return unsafe.Pointer(ret)
+	return ret
 }
 
 func GlobalUnlock(hMem HGLOBAL) bool {
@@ -184,14 +184,14 @@ func SizeofResource(hModule HMODULE, hResInfo HRSRC) uint32 {
 	return uint32(ret)
 }
 
-func LockResource(hResData HGLOBAL) unsafe.Pointer {
+func LockResource(hResData HGLOBAL) uintptr {
 	ret, _, _ := procLockResource.Call(uintptr(hResData))
 
 	if ret == 0 {
 		panic("LockResource failed")
 	}
 
-	return unsafe.Pointer(ret)
+	return ret
 }
 
 func LoadResource(hModule HMODULE, hResInfo HRSRC) HGLOBAL {

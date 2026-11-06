@@ -366,9 +366,9 @@ type DISPPARAMS struct {
 type EXCEPINFO struct {
 	WCode             uint16
 	WReserved         uint16
-	BstrSource        *uint16
-	BstrDescription   *uint16
-	BstrHelpFile      *uint16
+	BstrSource        uintptr
+	BstrDescription   uintptr
+	BstrHelpFile      uintptr
 	DwHelpContext     uint32
 	PvReserved        uintptr
 	PfnDeferredFillIn uintptr

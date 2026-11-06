@@ -93,8 +93,7 @@ func new(impls ...ifceImpl) *comObject {
 			continue
 		}
 
-		ifceP, ifcePSlice := allocUintptrObject(1)
-		ifcePSlice[0] = vtable.ComVTable
+		ifceP := allocUintptrObject([]uintptr{vtable.ComVTable})
 		cObj.ifcesImpl[i] = comInterfaceDesc{ifceP, ifceDef.impl()}
 	}
 

@@ -4,6 +4,7 @@ package w32
 
 import (
 	"fmt"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -36,7 +37,7 @@ const (
 type COPYDATASTRUCT struct {
 	DwData uintptr
 	CbData uint32
-	LpData unsafe.Pointer
+	LpData uintptr
 }
 
 var Fatal func(error)
@@ -48,6 +49,7 @@ const (
 )
 
 type WINDOWPOS struct {
+	Hwnd            HWND
 	HwndInsertAfter HWND
 	X               int32
 	Y               int32
@@ -372,7 +374,7 @@ func SendMessageToWindow(hwnd HWND, msg string) {
 	cds := COPYDATASTRUCT{
 		DwData: WMCOPYDATA_SINGLE_INSTANCE_DATA,
 		CbData: uint32(len(dataUTF16) * 2), // dataUTF16 ends with its NUL
-		LpData: unsafe.Pointer(&dataUTF16[0]),
+		LpData: uintptr(unsafe.Pointer(&dataUTF16[0])),
 	}
 
 	// Send message to first instance
@@ -382,6 +384,10 @@ func SendMessageToWindow(hwnd HWND, msg string) {
 		0,
 		uintptr(unsafe.Pointer(&cds)),
 	)
+	// cds holds the address of dataUTF16 as an integer, which does not keep
+	// the buffer alive. SendMessage returns after the receiver has handled
+	// the message, so the buffer must live until then.
+	runtime.KeepAlive(dataUTF16)
 }
 
 // GetMenu retrieves a handle to the menu assigned to the specified window

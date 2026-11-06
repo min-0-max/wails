@@ -4,7 +4,6 @@ package application
 
 import (
 	"fmt"
-	"unsafe"
 
 	"github.com/wailsapp/wails/v3/pkg/events"
 )
@@ -133,7 +132,7 @@ func (b *BrowserWindow) SetMenu(menu *Menu)                                {}
 func (b *BrowserWindow) SnapAssist()                                       {}
 func (b *BrowserWindow) AttachModal(modalWindow Window)                    {}
 func (b *BrowserWindow) SetContentProtection(protection bool) Window       { return b }
-func (b *BrowserWindow) NativeWindow() unsafe.Pointer                      { return nil }
+func (b *BrowserWindow) NativeWindow() NativeHandle                        { return noNativeHandle }
 func (b *BrowserWindow) SetEnabled(enabled bool)                           {}
 func (b *BrowserWindow) Flash(enabled bool)                                {}
 func (b *BrowserWindow) Print() error                                      { return nil }

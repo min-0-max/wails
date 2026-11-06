@@ -40,10 +40,7 @@ func (m *windowsDialog) show() {
 
 	var parentWindow uintptr
 	if m.dialog.window != nil {
-		nativeWindow := m.dialog.window.NativeWindow()
-		if nativeWindow != nil {
-			parentWindow = uintptr(nativeWindow)
-		}
+		parentWindow = m.dialog.window.NativeWindow()
 	}
 
 	if m.UseAppIcon || m.dialog.Icon != nil {
@@ -263,9 +260,8 @@ func showCfdDialog(newDlg func() (cfd.Dialog, error), isMultiSelect bool, parent
 
 	// Set parent window if provided
 	if parentWindow != nil {
-		nativeWindow := parentWindow.NativeWindow()
-		if nativeWindow != nil {
-			dlg.SetParentWindowHandle(uintptr(nativeWindow))
+		if hwnd := parentWindow.NativeWindow(); hwnd != 0 {
+			dlg.SetParentWindowHandle(hwnd)
 		}
 	}
 

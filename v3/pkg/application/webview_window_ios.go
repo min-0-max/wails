@@ -341,7 +341,7 @@ func (w *iosWebviewWindow) isMenuBarHidden() bool {
 	return true // iOS doesn't have menu bar
 }
 
-func (w *iosWebviewWindow) nativeWindow() unsafe.Pointer {
+func (w *iosWebviewWindow) nativeWindow() NativeHandle {
 	return w.nativeHandle
 }
 

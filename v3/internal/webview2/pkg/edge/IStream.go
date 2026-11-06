@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/wailsapp/wails/v3/internal/osmem"
 	"golang.org/x/sys/windows"
 )
 
@@ -19,6 +20,18 @@ type _IStreamVtbl struct {
 
 type IStream struct {
 	vtbl *_IStreamVtbl
+}
+
+// iUnknownReleaseSlot is the index of IUnknown::Release in every COM vtable.
+const iUnknownReleaseSlot = 2
+
+// releaseComObject calls IUnknown::Release on the COM object at obj, which
+// Windows owns. The first word of the object is the address of its vtable.
+// Both are read by copy, so obj never becomes a Go pointer.
+func releaseComObject(obj uintptr) {
+	vtbl := osmem.Read[uintptr](obj)
+	release := osmem.Read[uintptr](vtbl + iUnknownReleaseSlot*unsafe.Sizeof(uintptr(0)))
+	syscall.SyscallN(release, obj)
 }
 
 func (i *IStream) AddRef() error {

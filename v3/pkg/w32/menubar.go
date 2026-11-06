@@ -5,6 +5,8 @@ package w32
 import (
 	"os"
 	"unsafe"
+
+	"github.com/wailsapp/wails/v3/internal/osmem"
 )
 
 const (
@@ -142,7 +144,7 @@ type UAHDRAWMENUITEM struct {
 }
 
 type UAHMENUITEM struct {
-	Position int
+	Position int32
 	Umim     UAHMENUITEMMETRICS
 	Umpm     UAHMENUPOPUPMETRICS
 }
@@ -277,7 +279,7 @@ func MenuBarWndProc(hwnd HWND, msg uint32, wParam WPARAM, lParam LPARAM, theme *
 	}
 	switch msg {
 	case WM_UAHDRAWMENU:
-		udm := (*UAHMENU)(unsafe.Pointer(lParam))
+		udm := osmem.Read[UAHMENU](lParam)
 
 		// Check if maximized first
 		isMaximized := IsZoomed(hwnd)
@@ -382,7 +384,7 @@ func MenuBarWndProc(hwnd HWND, msg uint32, wParam WPARAM, lParam LPARAM, theme *
 		return true, LRESULT(udm.Hdc)
 	case WM_DRAWITEM:
 		// Handle owner-drawn menu items
-		dis := (*DRAWITEMSTRUCT)(unsafe.Pointer(lParam))
+		dis := osmem.Read[DRAWITEMSTRUCT](lParam)
 
 		// Check if this is a menu item
 		if dis.ControlType == ODT_MENU {
@@ -405,19 +407,19 @@ func MenuBarWndProc(hwnd HWND, msg uint32, wParam WPARAM, lParam LPARAM, theme *
 
 			// Draw text if we have item data
 			if dis.ItemData != 0 {
-				text := (*uint16)(unsafe.Pointer(dis.ItemData))
-				if text != nil {
-					// Set text color and draw
-					SetTextColor(dis.HDC, COLORREF(textColor))
-					SetBkMode(dis.HDC, TRANSPARENT)
-					DrawText(dis.HDC, (*[256]uint16)(unsafe.Pointer(text))[:], -1, &dis.RcItem, DT_CENTER|DT_SINGLELINE|DT_VCENTER)
-				}
+				// The text and its terminating NUL, which DrawText needs for a
+				// count of -1.
+				text := osmem.ReadSlice[uint16](dis.ItemData, osmem.UTF16Len(dis.ItemData)+1)
+				// Set text color and draw
+				SetTextColor(dis.HDC, COLORREF(textColor))
+				SetBkMode(dis.HDC, TRANSPARENT)
+				DrawText(dis.HDC, text, -1, &dis.RcItem, DT_CENTER|DT_SINGLELINE|DT_VCENTER)
 			}
 
 			return true, 1
 		}
 	case WM_UAHDRAWMENUITEM:
-		udmi := (*UAHDRAWMENUITEM)(unsafe.Pointer(lParam))
+		udmi := osmem.Read[UAHDRAWMENUITEM](lParam)
 
 		// Check if we're getting menu item draw messages when maximized or fullscreen
 		isMaximized := IsZoomed(hwnd)

@@ -14,6 +14,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/wailsapp/wails/v3/internal/osmem"
 	"github.com/wailsapp/wails/v3/internal/webview2/webviewloader"
 
 	"github.com/wailsapp/wails/v3/internal/operatingsystem"
@@ -278,7 +279,7 @@ func (m *windowsApp) wndProc(hwnd w32.HWND, msg uint32, wParam, lParam uintptr) 
 			m.restartingTaskbar.Store(false)
 		}()
 	case w32.WM_SETTINGCHANGE:
-		settingChanged := w32.UTF16PtrToString((*uint16)(unsafe.Pointer(lParam)))
+		settingChanged := osmem.UTF16String(lParam)
 		if settingChanged == "ImmersiveColorSet" {
 			isDarkMode := w32.IsCurrentlyDarkMode()
 			isSystemDarkMode := w32.IsSystemCurrentlyDarkMode()

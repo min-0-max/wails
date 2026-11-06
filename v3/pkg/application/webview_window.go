@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"unsafe"
 
 	"github.com/wailsapp/wails/v3/internal/assetserver"
 	"github.com/wailsapp/wails/v3/internal/optional"
@@ -78,7 +77,7 @@ type (
 		getScreen() (*Screen, error)
 		setFrameless(bool)
 		openContextMenu(menu *Menu, data *ContextMenuData)
-		nativeWindow() unsafe.Pointer
+		nativeWindow() NativeHandle
 		startDrag() error
 		startResize(border string) error
 		print() error
@@ -1703,10 +1702,13 @@ func (w *WebviewWindow) OpenContextMenu(data *ContextMenuData) {
 	})
 }
 
-// NativeWindow returns the platform-specific native window handle
-func (w *WebviewWindow) NativeWindow() unsafe.Pointer {
+// NativeWindow returns the platform-specific native window handle: the HWND
+// as a uintptr on Windows, and the platform window object as an
+// unsafe.Pointer elsewhere. It returns the zero NativeHandle when the window
+// has no native window.
+func (w *WebviewWindow) NativeWindow() NativeHandle {
 	if w.impl == nil || w.isDestroyed() {
-		return nil
+		return noNativeHandle
 	}
 	return w.impl.nativeWindow()
 }

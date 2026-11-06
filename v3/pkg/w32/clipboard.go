@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
+
+	"github.com/wailsapp/wails/v3/internal/osmem"
 )
 
 const (
@@ -59,7 +61,7 @@ func GetClipboardText() (string, error) {
 		return "", err
 	}
 
-	text := syscall.UTF16ToString((*[1 << 20]uint16)(unsafe.Pointer(l))[:])
+	text := osmem.UTF16String(l)
 
 	r, _, err := kernelGlobalUnlock.Call(h)
 	if r == 0 {

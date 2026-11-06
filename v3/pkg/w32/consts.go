@@ -4,7 +4,7 @@ package w32
 
 import (
 	"fmt"
-	"golang.org/x/sys/windows"
+	"github.com/wailsapp/wails/v3/internal/osmem"
 	"golang.org/x/sys/windows/registry"
 	"strconv"
 	"syscall"
@@ -63,7 +63,7 @@ func GetBranding() string {
 	// failure to free it is not worth a panic over the name of the edition,
 	// so the result of GlobalFree is ignored.
 	defer kernelGlobalFree.Call(ret)
-	return windows.UTF16PtrToString((*uint16)(unsafe.Pointer(ret)))
+	return osmem.UTF16String(ret)
 }
 
 func GetWindowsVersionInfo() (*WindowsVersionInfo, error) {
