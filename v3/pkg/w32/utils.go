@@ -215,15 +215,20 @@ func ComInvoke(disp *IDispatch, dispid int32, dispatch int16, params ...interfac
 		uintptr(unsafe.Pointer(&ret)),
 		uintptr(unsafe.Pointer(&excepInfo)),
 		0)
-	if hr != 0 {
-		if excepInfo.BstrDescription != 0 {
-			bs := bstrToString(excepInfo.BstrDescription)
-			panic(bs)
-		}
-	}
 	for _, varg := range vargs {
 		if varg.VT == VT_BSTR && varg.Val != 0 {
 			SysFreeString(uintptr(varg.Val))
+		}
+	}
+	if hr != 0 {
+		// Invoke allocates the EXCEPINFO strings and the caller frees them.
+		hasDescription := excepInfo.BstrDescription != 0
+		description := bstrToString(excepInfo.BstrDescription)
+		SysFreeString(excepInfo.BstrSource)
+		SysFreeString(excepInfo.BstrDescription)
+		SysFreeString(excepInfo.BstrHelpFile)
+		if hasDescription {
+			panic(description)
 		}
 	}
 	result = &ret
