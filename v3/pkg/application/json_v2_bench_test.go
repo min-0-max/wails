@@ -1,4 +1,4 @@
-//go:build bench && goexperiment.jsonv2
+//go:build bench && goexperiment.jsonv2 && go1.27
 
 package application_test
 

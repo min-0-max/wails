@@ -259,7 +259,7 @@ func BenchmarkWindowAttachConfigInit(b *testing.B) {
 				Offset:   0,
 				Debounce: 200 * time.Millisecond,
 			}
-			_ = config
+			_ = &config
 		}
 	})
 
@@ -272,7 +272,7 @@ func BenchmarkWindowAttachConfigInit(b *testing.B) {
 				justClosed:   false,
 				hasBeenShown: true,
 			}
-			_ = config
+			_ = &config
 		}
 	})
 }
