@@ -11,10 +11,10 @@ import { Create as $Create } from "/wails/runtime.js";
 import * as json$0 from "../../../../../encoding/json/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as events_only$0 from "./generator/testcases/events_only/models.js";
+import * as events_only$0 from "./generator/testdata/testcases/events_only/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as more$0 from "./generator/testcases/no_bindings_here/more/models.js";
+import * as more$0 from "./generator/testdata/testcases/no_bindings_here/more/models.js";
 
 function configure() {
     Object.freeze(Object.assign($Create.Events, {

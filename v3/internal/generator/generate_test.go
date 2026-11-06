@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -18,7 +19,35 @@ import (
 	"github.com/wailsapp/wails/v3/internal/generator/render"
 )
 
-const testcases = "github.com/wailsapp/wails/v3/internal/generator/testcases/..."
+// testcasesPath is the import path of the directory that holds the test
+// case packages.
+const testcasesPath = "github.com/wailsapp/wails/v3/internal/generator/testdata/testcases"
+
+// testcasePackages returns the import paths of every package under
+// testdata/testcases. The go tool leaves directories named testdata out of
+// the packages that a ... pattern matches, so the tests list them here.
+func testcasePackages(t *testing.T) []string {
+	t.Helper()
+	var paths []string
+	err := filepath.WalkDir(filepath.Join("testdata", "testcases"), func(file string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || filepath.Ext(file) != ".go" {
+			return err
+		}
+		dir, err := filepath.Rel(filepath.Join("testdata", "testcases"), filepath.Dir(file))
+		if err != nil {
+			return err
+		}
+		pkg := path.Join(testcasesPath, filepath.ToSlash(dir))
+		if !slices.Contains(paths, pkg) {
+			paths = append(paths, pkg)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return paths
+}
 
 type testParams struct {
 	name      string
@@ -92,6 +121,8 @@ func TestGenerator(t *testing.T) {
 		}
 	}
 
+	packages := testcasePackages(t)
+
 	// Run tests.
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -107,7 +138,7 @@ func TestGenerator(t *testing.T) {
 				config.NullLogger,
 			)
 
-			_, err := generator.Generate(testcases)
+			_, err := generator.Generate(packages...)
 			if report := (*ErrorReport)(nil); errors.As(err, &report) {
 				if report.HasErrors() {
 					t.Error(report)

@@ -184,7 +184,7 @@ task test:examples
 ## 8. Adding New Tests
 
 1. **Unit** — create `*_test.go`, run `go test ./...`
-2. **Generator / CLI** — extend the cases under `internal/generator/testcases/` or `internal/commands/*_test.go` and re-run `task test:generator` / `task test:cli`
+2. **Generator / CLI** — extend the cases under `internal/generator/testdata/testcases/` or `internal/commands/*_test.go` and re-run `task test:generator` / `task test:cli`
 3. **Templates / examples** — make sure the shipped templates still build with `task test:templates`
 
 ---

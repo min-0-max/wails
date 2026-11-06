@@ -233,7 +233,7 @@ Example: optional Wayland support on Linux.
 3. Add:
   - Unit tests (`*_test.go`)
   - Documentation (this file or the relevant `docs/...` page)
-  - A regression test under `internal/generator/testcases/` if you touched the bindings generator
+  - A regression test under `internal/generator/testdata/testcases/` if you touched the bindings generator
 
 4. Run `task precommit` plus the relevant `task test:*` targets locally before pushing.
 

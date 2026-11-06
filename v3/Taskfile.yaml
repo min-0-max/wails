@@ -306,9 +306,9 @@ tasks:
     summary: Test code generator test cases compilation
     cmds:
       - echo "Testing generator test cases (sample)..."
-      - cd internal/generator/testcases/function_single && go mod tidy && go build
-      - cd internal/generator/testcases/complex_method && go mod tidy && go build
-      - cd internal/generator/testcases/struct_literal_single && go mod tidy && go build
+      - cd internal/generator/testdata/testcases/function_single && go mod tidy && go build
+      - cd internal/generator/testdata/testcases/complex_method && go mod tidy && go build
+      - cd internal/generator/testdata/testcases/struct_literal_single && go mod tidy && go build
       - echo "✅ Generator test cases compile successfully"
 
   test:templates:

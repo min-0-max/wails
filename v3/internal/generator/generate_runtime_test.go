@@ -67,7 +67,7 @@ func testGeneratedJavaScript(t *testing.T, node, name, assertions string) {
 	}
 
 	generator := NewGenerator(options, config.DirCreator(outputDir), config.NullLogger)
-	packagePath := "github.com/wailsapp/wails/v3/internal/generator/testcases/" + name
+	packagePath := testcasesPath + "/" + name
 	_, err := generator.Generate(packagePath)
 	if err != nil {
 		t.Fatal(err)

@@ -23,7 +23,7 @@ func TestAnalyser(t *testing.T) {
 	}
 
 	// Gather tests from cases directory.
-	entries, err := os.ReadDir("testcases")
+	entries, err := os.ReadDir("testdata/testcases")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func TestAnalyser(t *testing.T) {
 			want: make([]string, 0),
 		}
 
-		want, err := os.Open(filepath.Join("testcases", entry.Name(), "bound_types.json"))
+		want, err := os.Open(filepath.Join("testdata", "testcases", entry.Name(), "bound_types.json"))
 		if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
 				t.Fatal(err)
@@ -54,11 +54,11 @@ func TestAnalyser(t *testing.T) {
 		}
 
 		for i := range test.want {
-			test.want[i] = path.Clean("github.com/wailsapp/wails/v3/internal/generator/testcases/" + test.name + test.want[i])
+			test.want[i] = path.Clean(testcasesPath + "/" + test.name + test.want[i])
 		}
 		slices.Sort(test.want)
 
-		events, err := os.Open(filepath.Join("testcases", entry.Name(), "events.json"))
+		events, err := os.Open(filepath.Join("testdata", "testcases", entry.Name(), "events.json"))
 		if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
 				t.Fatal(err)
@@ -96,10 +96,13 @@ func TestAnalyser(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		pkgPattern := "github.com/wailsapp/wails/v3/internal/generator/testcases/" + test.name
+		pkgPatterns := []string{testcasesPath + "/" + test.name}
+		if test.name == "..." {
+			pkgPatterns = testcasePackages(t)
+		}
 
 		t.Run("pkg="+test.name, func(t *testing.T) {
-			pkgs, err := LoadPackages(nil, pkgPattern)
+			pkgs, err := LoadPackages(nil, pkgPatterns...)
 			if err != nil {
 				t.Fatal(err)
 			}
