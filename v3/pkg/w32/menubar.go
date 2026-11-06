@@ -142,7 +142,7 @@ type UAHDRAWMENUITEM struct {
 }
 
 type UAHMENUITEM struct {
-	Position int
+	Position int32
 	Umim     UAHMENUITEMMETRICS
 	Umpm     UAHMENUPOPUPMETRICS
 }

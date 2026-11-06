@@ -49,6 +49,7 @@ const (
 )
 
 type WINDOWPOS struct {
+	Hwnd            HWND
 	HwndInsertAfter HWND
 	X               int32
 	Y               int32
