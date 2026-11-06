@@ -119,7 +119,7 @@ func wndProc(hwnd w32.HWND, msg uint32, wparam w32.WPARAM, lparam w32.LPARAM) w3
 		ldata := (*w32.COPYDATASTRUCT)(unsafe.Pointer(lparam))
 
 		if ldata.DwData == w32.WMCOPYDATA_SINGLE_INSTANCE_DATA {
-			serialized := windows.UTF16PtrToString((*uint16)(unsafe.Pointer(ldata.LpData)))
+			serialized := windows.UTF16PtrToString((*uint16)(ldata.LpData))
 			secondInstanceBuffer <- serialized
 		}
 		return w32.LRESULT(0)

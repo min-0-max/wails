@@ -36,7 +36,7 @@ const (
 type COPYDATASTRUCT struct {
 	DwData uintptr
 	CbData uint32
-	LpData uintptr
+	LpData unsafe.Pointer
 }
 
 var Fatal func(error)
@@ -372,7 +372,7 @@ func SendMessageToWindow(hwnd HWND, msg string) {
 	cds := COPYDATASTRUCT{
 		DwData: WMCOPYDATA_SINGLE_INSTANCE_DATA,
 		CbData: uint32((len(dataUTF16) * 2) + 1), // +1 for null terminator
-		LpData: uintptr(unsafe.Pointer(&dataUTF16[0])),
+		LpData: unsafe.Pointer(&dataUTF16[0]),
 	}
 
 	// Send message to first instance
