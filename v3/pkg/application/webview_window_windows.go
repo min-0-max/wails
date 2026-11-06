@@ -18,6 +18,7 @@ import (
 	"github.com/wailsapp/wails/v3/internal/assetserver/webview"
 	"github.com/wailsapp/wails/v3/internal/capabilities"
 	"github.com/wailsapp/wails/v3/internal/debounce"
+	"github.com/wailsapp/wails/v3/internal/osmem"
 	"github.com/wailsapp/wails/v3/internal/runtime"
 	"github.com/wailsapp/wails/v3/internal/sliceutil"
 	"github.com/wailsapp/wails/v3/internal/webview2/webviewloader"
@@ -1775,7 +1776,7 @@ func (w *windowsWebviewWindow) WndProc(msg uint32, wparam, lparam uintptr) uintp
 			w.parent.emit(events.Windows.WindowHide)
 		}
 	case w32.WM_WINDOWPOSCHANGED:
-		windowPos := (*w32.WINDOWPOS)(unsafe.Pointer(lparam))
+		windowPos := osmem.Read[w32.WINDOWPOS](lparam)
 		if windowPos.Flags&w32.SWP_NOZORDER == 0 {
 			w.parent.emit(events.Windows.WindowZOrderChanged)
 		}
@@ -1939,7 +1940,7 @@ func (w *windowsWebviewWindow) WndProc(msg uint32, wparam, lparam uintptr) uintp
 		return 0
 
 	case w32.WM_GETMINMAXINFO:
-		mmi := (*w32.MINMAXINFO)(unsafe.Pointer(lparam))
+		mmi := osmem.Read[w32.MINMAXINFO](lparam)
 		hasConstraints := false
 		options := w.parent.options
 		// Using ScreenManager to get the closest screen and scale according to its DPI is problematic
@@ -1970,6 +1971,7 @@ func (w *windowsWebviewWindow) WndProc(msg uint32, wparam, lparam uintptr) uintp
 			}
 		}
 		if hasConstraints {
+			osmem.Write(lparam, mmi)
 			return 0
 		}
 
@@ -1982,7 +1984,7 @@ func (w *windowsWebviewWindow) WndProc(msg uint32, wparam, lparam uintptr) uintp
 		// minimised, #5544). Skip the resize; a fresh WM_DPICHANGED with a
 		// correct rect arrives if the DPI really differs on restore.
 		if !w.ignoreDPIChangeResizing && !w.isMinimizing {
-			newWindowRect := (*w32.RECT)(unsafe.Pointer(lparam))
+			newWindowRect := osmem.Read[w32.RECT](lparam)
 			flags := w32.SWP_NOZORDER | w32.SWP_NOACTIVATE
 			// For frameless windows, include SWP_FRAMECHANGED to trigger WM_NCCALCSIZE
 			// and recalculate hit-test regions for proper mouse interaction after DPI change.
@@ -2103,7 +2105,7 @@ func (w *windowsWebviewWindow) WndProc(msg uint32, wparam, lparam uintptr) uintp
 			// This hides the titlebar and also disables the resizing from user interaction because the standard frame is not
 			// shown. We still need the WS_THICKFRAME style to enable resizing from the frontend.
 			if wparam != 0 {
-				rgrc := (*w32.RECT)(unsafe.Pointer(lparam))
+				rgrc := osmem.Read[w32.RECT](lparam)
 				if w.isCurrentlyFullscreen {
 					// In Full-Screen mode we don't need to adjust anything
 					// It essential we have the flag here, that is set before SetWindowPos in fullscreen/unfullscreen
@@ -2141,7 +2143,7 @@ func (w *windowsWebviewWindow) WndProc(msg uint32, wparam, lparam uintptr) uintp
 						}
 					}
 
-					*rgrc = w32.RECT{
+					rgrc = w32.RECT{
 						Left:   int32(rect.X),
 						Top:    int32(rect.Y),
 						Right:  int32(rect.X + rect.Width),
@@ -2158,6 +2160,7 @@ func (w *windowsWebviewWindow) WndProc(msg uint32, wparam, lparam uintptr) uintp
 					rgrc.Bottom += 1
 					w.setPadding(edge.Rect{Bottom: 1})
 				}
+				osmem.Write(lparam, rgrc)
 				return 0
 			}
 		}

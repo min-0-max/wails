@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/wailsapp/wails/v3/internal/osmem"
 	"github.com/wailsapp/wails/v3/pkg/w32"
 	"golang.org/x/sys/windows"
 )
@@ -116,10 +117,10 @@ func createEventTargetWindow(className string, windowName string) w32.HWND {
 
 func wndProc(hwnd w32.HWND, msg uint32, wparam w32.WPARAM, lparam w32.LPARAM) w32.LRESULT {
 	if msg == w32.WM_COPYDATA {
-		ldata := (*w32.COPYDATASTRUCT)(unsafe.Pointer(lparam))
+		ldata := osmem.Read[w32.COPYDATASTRUCT](lparam)
 
 		if ldata.DwData == w32.WMCOPYDATA_SINGLE_INSTANCE_DATA {
-			serialized := windows.UTF16PtrToString((*uint16)(unsafe.Pointer(ldata.LpData)))
+			serialized := windows.UTF16ToString(osmem.ReadSlice[uint16](ldata.LpData, int(ldata.CbData/2)))
 			secondInstanceBuffer <- serialized
 		}
 		return w32.LRESULT(0)
