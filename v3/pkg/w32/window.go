@@ -4,6 +4,7 @@ package w32
 
 import (
 	"fmt"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -382,6 +383,10 @@ func SendMessageToWindow(hwnd HWND, msg string) {
 		0,
 		uintptr(unsafe.Pointer(&cds)),
 	)
+	// cds holds the address of dataUTF16 as an integer, which does not keep
+	// the buffer alive. SendMessage returns after the receiver has handled
+	// the message, so the buffer must live until then.
+	runtime.KeepAlive(dataUTF16)
 }
 
 // GetMenu retrieves a handle to the menu assigned to the specified window
