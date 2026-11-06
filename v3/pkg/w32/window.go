@@ -371,7 +371,7 @@ func SendMessageToWindow(hwnd HWND, msg string) {
 	// Prepare COPYDATASTRUCT
 	cds := COPYDATASTRUCT{
 		DwData: WMCOPYDATA_SINGLE_INSTANCE_DATA,
-		CbData: uint32((len(dataUTF16) * 2) + 1), // +1 for null terminator
+		CbData: uint32(len(dataUTF16) * 2), // dataUTF16 ends with its NUL
 		LpData: unsafe.Pointer(&dataUTF16[0]),
 	}
 
