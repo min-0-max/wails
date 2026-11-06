@@ -4,8 +4,8 @@ package webviewloader
 
 import (
 	"unicode/utf16"
-	"unsafe"
 
+	"github.com/wailsapp/wails/v3/internal/osmem"
 	"github.com/wailsapp/wails/v3/internal/webview2/pkg/combridge"
 	"golang.org/x/sys/windows"
 )
@@ -228,43 +228,42 @@ func _iCoreWebView2EnvironmentOptionsNOP(this uintptr) uintptr {
 	return uintptr(windows.S_FALSE)
 }
 
-func _iCoreWebView2EnvironmentOptionsAdditionalBrowserArguments(this uintptr, value **uint16) uintptr {
+func _iCoreWebView2EnvironmentOptionsAdditionalBrowserArguments(this uintptr, value uintptr) uintptr {
 	v := combridge.Resolve[iCoreWebView2EnvironmentOptions](this).AdditionalBrowserArguments()
-	*value = stringToOleString(v)
+	osmem.Write(value, stringToOleString(v))
 	return uintptr(windows.S_OK)
 }
 
-func _iCoreWebView2EnvironmentOptionsLanguage(this uintptr, value **uint16) uintptr {
+func _iCoreWebView2EnvironmentOptionsLanguage(this uintptr, value uintptr) uintptr {
 	args := combridge.Resolve[iCoreWebView2EnvironmentOptions](this).Language()
-	*value = stringToOleString(args)
+	osmem.Write(value, stringToOleString(args))
 	return uintptr(windows.S_OK)
 }
 
-func _iCoreWebView2EnvironmentTargetCompatibleBrowserVersion(this uintptr, value **uint16) uintptr {
+func _iCoreWebView2EnvironmentTargetCompatibleBrowserVersion(this uintptr, value uintptr) uintptr {
 	args := combridge.Resolve[iCoreWebView2EnvironmentOptions](this).TargetCompatibleBrowserVersion()
-	*value = stringToOleString(args)
+	osmem.Write(value, stringToOleString(args))
 	return uintptr(windows.S_OK)
 }
 
-func _iCoreWebView2EnvironmentOptionsAllowSingleSignOnUsingOSPrimaryAccount(this uintptr, value *int32) uintptr {
+func _iCoreWebView2EnvironmentOptionsAllowSingleSignOnUsingOSPrimaryAccount(this uintptr, value uintptr) uintptr {
 	v := combridge.Resolve[iCoreWebView2EnvironmentOptions](this).AllowSingleSignOnUsingOSPrimaryAccount()
-	*value = boolToInt(v)
+	osmem.Write(value, boolToInt(v))
 	return uintptr(windows.S_OK)
 }
 
-func _iCoreWebView2EnvironmentOptions2ExclusiveUserDataFolderAccess(this uintptr, value *int32) uintptr {
+func _iCoreWebView2EnvironmentOptions2ExclusiveUserDataFolderAccess(this uintptr, value uintptr) uintptr {
 	v := combridge.Resolve[iCoreWebView2EnvironmentOptions2](this).ExclusiveUserDataFolderAccess()
-	*value = boolToInt(v)
+	osmem.Write(value, boolToInt(v))
 	return uintptr(windows.S_OK)
 }
 
-func stringToOleString(v string) *uint16 {
+// stringToOleString copies v into memory from CoTaskMemAlloc, which the
+// caller of the COM method frees, and returns its address.
+func stringToOleString(v string) uintptr {
 	wstr := utf16.Encode([]rune(v + "\x00"))
-	lwstr := len(wstr)
-	ptr := (*uint16)(coTaskMemAlloc(2 * lwstr))
-
-	copy(unsafe.Slice(ptr, lwstr), wstr)
-
+	ptr := coTaskMemAlloc(2 * len(wstr))
+	osmem.WriteSlice(ptr, wstr)
 	return ptr
 }
 

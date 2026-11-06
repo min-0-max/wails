@@ -8,6 +8,7 @@ import (
 	"unicode/utf16"
 	"unsafe"
 
+	"github.com/wailsapp/wails/v3/internal/osmem"
 	"golang.org/x/sys/windows"
 )
 
@@ -69,20 +70,20 @@ func verQueryValueString(block []byte, subBlock string) (string, error) {
 	// because we get a pointer into that memory block from the native verQueryValue
 	// call back.
 	pBlock := globalAlloc(0, uint32(len(block)))
-	defer globalFree(unsafe.Pointer(pBlock))
+	defer globalFree(pBlock)
 
 	// Copy the memory region into native side memory
-	copy(unsafe.Slice((*byte)(pBlock), len(block)), block)
+	osmem.WriteSlice(pBlock, block)
 
 	lpSubBlock, err := syscall.UTF16PtrFromString(subBlock)
 	if err != nil {
 		return "", err
 	}
 
-	var lplpBuffer unsafe.Pointer
-	var puLen uint
+	var lplpBuffer uintptr
+	var puLen uint32
 	ret, _, err := procVerQueryValue.Call(
-		uintptr(pBlock),
+		pBlock,
 		uintptr(unsafe.Pointer(lpSubBlock)),
 		uintptr(unsafe.Pointer(&lplpBuffer)),
 		uintptr(unsafe.Pointer(&puLen)),
@@ -102,11 +103,11 @@ func verQueryValueString(block []byte, subBlock string) (string, error) {
 	}
 	puLen -= 1 // Remove Null-Terminator
 
-	wchar := unsafe.Slice((*uint16)(lplpBuffer), puLen)
+	wchar := osmem.ReadSlice[uint16](lplpBuffer, int(puLen))
 	return string(utf16.Decode(wchar)), nil
 }
 
-func globalAlloc(uFlags uint, dwBytes uint32) unsafe.Pointer {
+func globalAlloc(uFlags uint, dwBytes uint32) uintptr {
 	ret, _, _ := procGlobalAlloc.Call(
 		uintptr(uFlags),
 		uintptr(dwBytes))
@@ -115,11 +116,11 @@ func globalAlloc(uFlags uint, dwBytes uint32) unsafe.Pointer {
 		panic("globalAlloc failed")
 	}
 
-	return unsafe.Pointer(ret)
+	return ret
 }
 
-func globalFree(data unsafe.Pointer) {
-	ret, _, _ := procGlobalFree.Call(uintptr(data))
+func globalFree(data uintptr) {
+	ret, _, _ := procGlobalFree.Call(data)
 	if ret != 0 {
 		panic("globalFree failed")
 	}
@@ -132,12 +133,12 @@ func maskErrorSuccess(err error) error {
 	return err
 }
 
-func coTaskMemAlloc(size int) unsafe.Pointer {
+func coTaskMemAlloc(size int) uintptr {
 	ret, _, _ := procCoTaskMemAlloc.Call(
 		uintptr(size))
 
 	if ret == 0 {
 		panic("coTaskMemAlloc failed")
 	}
-	return unsafe.Pointer(ret)
+	return ret
 }
