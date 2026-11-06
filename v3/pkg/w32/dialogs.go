@@ -15,7 +15,7 @@ func MessageBoxWithIcon(hwnd HWND, text *uint16, caption *uint16, iconID int, fl
 		lpszText:    text,
 		lpszCaption: caption,
 		dwStyle:     flags,
-		lpszIcon:    (*uint16)(unsafe.Pointer(uintptr(iconID))),
+		lpszIcon:    uintptr(iconID),
 	}
 
 	r, _, err := procMessageBoxIndirect.Call(

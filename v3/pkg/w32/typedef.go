@@ -483,7 +483,7 @@ type MSGBOXPARAMS struct {
 	lpszText           *uint16
 	lpszCaption        *uint16
 	dwStyle            uint32
-	lpszIcon           *uint16
+	lpszIcon           uintptr
 	dwContextHelp      uintptr
 	lpfnMsgBoxCallback uintptr
 	dwLanguageId       uint32
