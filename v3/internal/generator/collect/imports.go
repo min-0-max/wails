@@ -178,7 +178,12 @@ func (imports *ImportMap) addTypeImpl(typ types.Type, visited map[*types.TypeNam
 
 			if _, isAlias := typ.(*types.Alias); isAlias {
 				// Aliased type might be needed during
-				// JS value creation and initialisation.
+				// JS value creation and initialisation,
+				// unless it renders as any or string:
+				// those values are created as they are.
+				if IsAny(typ) || IsStringAlias(typ) {
+					return
+				}
 				typ = types.Unalias(typ)
 				break
 			}

@@ -194,6 +194,18 @@ func (info *ModelInfo) Collect() *ModelInfo {
 			// because in doing so we could end up with a private type from another package.
 			def = t.Rhs()
 
+			// An interface value marshals as its dynamic value,
+			// hence every interface renders as any.
+			// Render an alias for an interface as any too,
+			// instead of naming the interface it stands for:
+			// that name is a detail of the package that declares the alias,
+			// and naming it would make the output depend on that package's layout.
+			// Type parameters have interface underlying types but are not interfaces;
+			// special types have a dedicated rendering.
+			if target := types.Unalias(def); types.IsInterface(target) && !IsTypeParam(target) && !collector.IsSpecialType(target) {
+				return
+			}
+
 			// Test for constants with alias type,
 			// but only when non-generic alias resolves to a basic type
 			// (hence not to e.g. a named type).
